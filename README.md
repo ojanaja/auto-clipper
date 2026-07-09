@@ -75,7 +75,26 @@ Output installer ada di `electron-app/dist/`:
 - Installer MVP **tidak di-sign/notarize**. Di macOS user perlu klik kanan "Open" saat pertama membuka.
 - Model Whisper di-download saat pertama kali transcribe berjalan (tidak dibundle ke installer).
 - CI membangun installer otomatis untuk macOS dan Windows serta menjalankan verifikasi manifest.
+- API key Gemini ikut dibundle lewat `.env` saat build lokal. Ubah `.env` di root project sebelum `npm run dist` kalau key berubah.
+
+## QA & Rilis
+
+- Fase 10 (QA, Bug Bash & Rilis) telah menyelesaikan smoke test pipeline nyata dengan video publik.
+- Semua test unit & integration lulus: 121 pytest, 14 Jest, 2 Playwright E2E, 1 integration real-video.
+- Known issues / keterbatasan MVP:
+  - Beberapa video YouTube butuh JS runtime (Deno/Node) agar yt-dlp bisa mengekstrak semua format; app biasanya tetap bisa mengunduh video umum.
+  - Waktu transkripsi pertama kali lebih lama karena download model Whisper (~150 MB).
+  - Render menggunakan center-crop (belum deteksi wajah otomatis).
+  - Installer unsigned: di macOS mungkin muncul peringatan Gatekeeper, pilih klik kanan → Open.
 
 ## Testing
 
 Mengikuti pendekatan TDD (lihat `docs/Task_List_TDD_AutoClip_Lokal.docx`): unit test (pytest / Jest) sebagai porsi terbesar, integration test dengan dependency di-mock, dan smoke test end-to-end (Playwright) dijalankan manual/nightly.
+
+Untuk smoke test pipeline nyata sebelum rilis:
+```bash
+cd backend
+export GEMINI_API_KEY=$(grep -o 'GEMINI_API_KEY=.*' ../.env | cut -d= -f2-)
+export PATH="../electron-app/build/backend/bin:$PATH"
+.venv/bin/pytest -m integration tests/integration/test_pipeline_e2e.py -v
+```
