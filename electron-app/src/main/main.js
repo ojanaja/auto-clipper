@@ -1,24 +1,55 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 const os = require("os");
 
 const BACKEND_PORT = 8237;
 let backendProcess = null;
 
+function isDev() {
+  return !app.isPackaged;
+}
+
 function outputDir() {
   return process.env.AUTOCLIP_OUTPUT_DIR || path.join(os.homedir(), "Movies", "AutoClip");
 }
 
+function sidecarPath() {
+  const name = process.platform === "win32" ? "autoclip-backend.exe" : "autoclip-backend";
+  return path.join(process.resourcesPath, "backend", name);
+}
+
+function backendBinDir() {
+  return path.join(process.resourcesPath, "backend", "bin");
+}
+
 function spawnBackend() {
-  // Dev mode: jalankan uvicorn dari venv backend repo.
-  // ponytail: fase 9 (packaging) ganti path ini ke sidecar PyInstaller.
-  const backendDir = path.join(__dirname, "..", "..", "..", "backend");
-  const python = path.join(backendDir, ".venv", "bin", "python");
-  backendProcess = spawn(python, ["-m", "uvicorn", "app:app", "--port", String(BACKEND_PORT)], {
-    cwd: backendDir,
-    stdio: "inherit",
-  });
+  if (process.env.AUTOCLIP_SKIP_BACKEND) {
+    return;
+  }
+
+  if (isDev()) {
+    // Dev mode: jalankan uvicorn dari venv backend repo.
+    const backendDir = path.join(__dirname, "..", "..", "..", "backend");
+    const python = path.join(backendDir, ".venv", "bin", "python");
+    backendProcess = spawn(python, ["-m", "uvicorn", "app:app", "--port", String(BACKEND_PORT)], {
+      cwd: backendDir,
+      stdio: "inherit",
+    });
+  } else {
+    // Production: pakai PyInstaller sidecar yang dibundle Electron Builder.
+    const env = { ...process.env };
+    const binDir = backendBinDir();
+    if (fs.existsSync(binDir)) {
+      env.PATH = binDir + path.delimiter + env.PATH;
+    }
+    backendProcess = spawn(sidecarPath(), [], {
+      env,
+      stdio: "inherit",
+    });
+  }
+
   backendProcess.on("error", (err) => {
     console.error("Gagal spawn backend:", err.message);
   });
@@ -40,9 +71,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   ipcMain.handle("open-output-folder", () => shell.openPath(outputDir()));
-  if (!process.env.AUTOCLIP_SKIP_BACKEND) {
-    spawnBackend();
-  }
+  spawnBackend();
   createWindow();
 
   app.on("activate", () => {

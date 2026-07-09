@@ -1,0 +1,28 @@
+appId: com.autoclip.lokal
+productName: AutoClip Lokal
+copyright: Copyright © 2026
+directories:
+  output: dist
+  buildResources: build
+files:
+  - src/main/**
+  - src/renderer/**
+  - package.json
+extraResources:
+  - from: build/backend
+    to: backend
+    filter:
+      - "**/*"
+mac:
+  target:
+    - dmg
+  category: public.app-category.video
+  hardenedRuntime: false
+  gatekeeperAssess: false
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+publish: null

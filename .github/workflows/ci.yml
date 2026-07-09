@@ -36,3 +36,56 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+
+  package:
+    needs: [backend, frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: electron-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: electron-app/package-lock.json
+
+      - run: npm ci
+
+      - name: Build backend sidecar
+        run: npm run build:backend
+
+      - name: Bundle ffmpeg/ffprobe
+        run: npm run build:ffmpeg
+
+      - name: Build installer
+        run: npm run dist
+
+      - name: Verify build manifest
+        run: node scripts/verify-build.js
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoclip-${{ matrix.os }}
+          path: |
+            electron-app/dist/*.dmg
+            electron-app/dist/*.exe
+          if-no-files-found: error

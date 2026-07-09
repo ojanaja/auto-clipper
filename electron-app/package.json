@@ -1,17 +1,23 @@
 {
   "name": "electron-app",
   "version": "1.0.0",
-  "description": "",
+  "description": "AutoClip Lokal desktop app",
   "main": "src/main/main.js",
-  "directories": {
-    "test": "tests"
-  },
   "scripts": {
     "start": "electron .",
     "test": "jest",
     "e2e": "playwright test e2e/ --reporter=line",
     "lint": "eslint .",
-    "format": "prettier --check ."
+    "format": "prettier --check .",
+    "clean": "rm -rf dist build",
+    "build:backend": "node scripts/build-backend.js",
+    "build:ffmpeg": "node scripts/copy-ffmpeg.js",
+    "predist": "npm run build:backend && npm run build:ffmpeg",
+    "dist": "electron-builder --publish=never",
+    "dist:dir": "electron-builder --dir --publish=never",
+    "dist:mac": "electron-builder --mac --publish=never",
+    "dist:win": "electron-builder --win --publish=never",
+    "verify:build": "node scripts/verify-build.js"
   },
   "keywords": [],
   "author": "",
@@ -24,8 +30,11 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/user-event": "^14.6.1",
     "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "playwright": "^1.61.1",
