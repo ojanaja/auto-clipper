@@ -145,6 +145,15 @@ function setupApp(doc) {
       if (data.stage === "ready") loadSegments();
       if (data.stage === "done") loadOutput();
     };
+    ws.onerror = () => {
+      setStatus("error", "Koneksi progress terputus. Coba kirim ulang link.");
+    };
+    ws.onclose = () => {
+      // Jika belum sampai ready/done, tampilkan petunjuk.
+      if (statusText.textContent === STAGE_LABELS.queued) {
+        setStatus("error", "Proses belum dimulai. Periksa log backend atau coba video lain.");
+      }
+    };
   }
 
   form.addEventListener("submit", async (e) => {
