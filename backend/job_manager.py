@@ -45,6 +45,12 @@ class Job:
     progress: int = 0
     error: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    # Hasil pipeline (diisi orchestrator).
+    video_path: str | None = None
+    words: list = field(default_factory=list)
+    segments: list = field(default_factory=list)
+    # State render per segmen: {segment_id: {status, progress, path}}.
+    clips: dict = field(default_factory=dict)
 
 
 class JobManager:

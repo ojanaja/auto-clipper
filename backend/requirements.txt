@@ -4,6 +4,7 @@ httpx
 websockets
 yt-dlp
 faster-whisper
+anthropic
 
 pytest
 pytest-mock

@@ -1,11 +1,14 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import app as app_module
 from app import app
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    # Matikan auto-trigger pipeline: test ini cuma menguji kontrak endpoint job.
+    monkeypatch.setattr(app_module, "_spawn", lambda fn, *args: None)
     with TestClient(app) as c:
         yield c
 
