@@ -1,0 +1,28 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+electron-app/node_modules/
+electron-app/dist/
+electron-app/build/
+
+# App runtime data
+*.log
+tests/fixtures/*.mp4
+tests/fixtures/*.wav
+
+# OS
+.DS_Store
+
+# Word lock files
+~$*.docx
+
+# Env / secrets
+.env
+*.local.json
