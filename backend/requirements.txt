@@ -3,6 +3,7 @@ uvicorn[standard]
 httpx
 websockets
 yt-dlp
+faster-whisper
 
 pytest
 pytest-mock
