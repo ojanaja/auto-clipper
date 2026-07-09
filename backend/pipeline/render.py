@@ -62,7 +62,7 @@ def render_segment(
     vf = (
         f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
         f"scale=1080:1920,"
-        f"ass={ass_path}"
+        f"ass=filename={ass_path}"
     )
     cmd = [
         "ffmpeg",
@@ -81,5 +81,6 @@ def render_segment(
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RenderError(f"ffmpeg gagal render segmen: {result.stderr[-500:]}")
+        full_cmd = " ".join(str(c) for c in cmd)
+        raise RenderError(f"ffmpeg gagal render segmen.\nCMD: {full_cmd}\nSTDERR:\n{result.stderr}")
     return output_path

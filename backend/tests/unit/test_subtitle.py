@@ -101,7 +101,7 @@ def test_burn_subtitle_builds_correct_ffmpeg_command(fake_run, tmp_path):
     assert args[0] == "ffmpeg"
     assert "-i" in args and str(video) in args
     vf_idx = args.index("-vf")
-    assert f"ass={ass}" == args[vf_idx + 1]
+    assert f"ass=filename={ass}" == args[vf_idx + 1]
     assert str(output) == args[-1]
     # Audio tidak di-reencode.
     aidx = args.index("-c:a")

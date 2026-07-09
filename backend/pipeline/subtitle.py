@@ -76,7 +76,7 @@ def burn_subtitle(video_path: Path, ass_path: Path, output_path: Path) -> None:
         "-i",
         str(video_path),
         "-vf",
-        f"ass={ass_path}",
+        f"ass=filename={ass_path}",
         "-c:a",
         "copy",
         str(output_path),
