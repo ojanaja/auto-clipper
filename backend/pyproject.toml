@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra -m 'not integration'"
+markers = [
+    "integration: test lambat dengan dependency asli (jaringan/YouTube), jalankan manual: pytest -m integration",
+]
 
 [tool.ruff]
 line-length = 100

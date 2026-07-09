@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 httpx
 websockets
+yt-dlp
 
 pytest
 pytest-mock
