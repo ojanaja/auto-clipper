@@ -1,6 +1,14 @@
 const js = require("@eslint/js");
 const prettier = require("eslint-config-prettier");
 
+const browserGlobals = {
+  window: "readonly",
+  document: "readonly",
+  fetch: "readonly",
+  WebSocket: "readonly",
+  setTimeout: "readonly",
+};
+
 module.exports = [
   js.configs.recommended,
   prettier,
@@ -14,11 +22,12 @@ module.exports = [
         process: "readonly",
         __dirname: "readonly",
         console: "readonly",
+        ...browserGlobals,
       },
     },
   },
   {
-    files: ["**/*.test.js"],
+    files: ["**/tests/**/*.js"],
     languageOptions: {
       globals: {
         describe: "readonly",
@@ -27,6 +36,8 @@ module.exports = [
         expect: "readonly",
         beforeEach: "readonly",
         afterEach: "readonly",
+        jest: "readonly",
+        global: "writable",
       },
     },
   },

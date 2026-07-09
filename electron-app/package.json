@@ -2,12 +2,14 @@
   "name": "electron-app",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/main/main.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
+    "start": "electron .",
     "test": "jest",
+    "e2e": "playwright test e2e/ --reporter=line",
     "lint": "eslint .",
     "format": "prettier --check ."
   },
@@ -17,9 +19,16 @@
   "type": "commonjs",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/user-event": "^14.6.1",
+    "electron": "^43.1.0",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "playwright": "^1.61.1",
     "prettier": "^3.9.4"
   }
 }

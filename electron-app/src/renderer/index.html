@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AutoClip Lokal</title>
+    <style>
+      :root {
+        color-scheme: dark;
+
+        /* Design system: AutoClip Lokal (Dark OLED / content-first utility) */
+        --bg-base: #050506;
+        --bg-surface: #0b0f17;
+        --bg-elevated: #121826;
+        --color-primary: #ec4899;
+        --color-primary-hover: #db2777;
+        --color-accent: #2563eb;
+        --color-accent-hover: #1d4ed8;
+        --color-success: #22c55e;
+        --color-foreground: #f8fafc;
+        --color-muted: #1e293b;
+        --color-muted-fg: #94a3b8;
+        --color-border: rgba(255, 255, 255, 0.08);
+        --color-destructive: #ef4444;
+        --color-ring: #ec4899;
+        --radius-sm: 6px;
+        --radius: 10px;
+        --radius-lg: 14px;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.35);
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      body {
+        font-family:
+          Inter,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        background:
+          radial-gradient(1200px 600px at 50% -10%, rgba(236, 72, 153, 0.08), transparent),
+          var(--bg-base);
+        color: var(--color-foreground);
+        font-size: 15px;
+        line-height: 1.55;
+        padding: var(--space-5);
+        max-width: 680px;
+        margin: 0 auto;
+        min-height: 100vh;
+      }
+
+      h1 {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: var(--space-1);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-2);
+      }
+
+      .brand-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--color-primary);
+        box-shadow: 0 0 12px rgba(236, 72, 153, 0.55);
+      }
+
+      .subtitle {
+        color: var(--color-muted-fg);
+        font-size: 14px;
+        margin-bottom: var(--space-5);
+      }
+
+      section {
+        margin-bottom: var(--space-5);
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+
+      label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--color-muted-fg);
+      }
+
+      .helper {
+        font-size: 13px;
+        color: var(--color-muted-fg);
+      }
+
+      #job-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+        background: var(--bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        box-shadow: var(--shadow-sm);
+      }
+
+      input[type="url"] {
+        width: 100%;
+        background: var(--bg-elevated);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        color: var(--color-foreground);
+        padding: 12px 14px;
+        font-size: 15px;
+        min-height: 48px;
+        transition:
+          border-color 180ms var(--ease-out),
+          box-shadow 180ms var(--ease-out);
+      }
+
+      input[type="url"]::placeholder {
+        color: var(--color-muted-fg);
+        opacity: 0.7;
+      }
+
+      input[type="url"]:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.25);
+      }
+
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        background: var(--color-accent);
+        color: #ffffff;
+        border: none;
+        border-radius: var(--radius);
+        padding: 12px 20px;
+        font-size: 15px;
+        font-weight: 600;
+        min-height: 48px;
+        cursor: pointer;
+        transition:
+          background 180ms var(--ease-out),
+          transform 120ms var(--ease-out),
+          opacity 180ms var(--ease-out);
+        box-shadow: var(--shadow-sm);
+      }
+
+      button:hover:not(:disabled) {
+        background: var(--color-accent-hover);
+        transform: translateY(-1px);
+      }
+
+      button:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      button:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.35);
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      button.secondary {
+        background: var(--bg-elevated);
+        color: var(--color-foreground);
+        border: 1px solid var(--color-border);
+      }
+
+      button.secondary:hover:not(:disabled) {
+        background: var(--color-muted);
+      }
+
+      button.link {
+        background: transparent;
+        color: var(--color-muted-fg);
+        border: none;
+        padding: var(--space-2) var(--space-3);
+        min-height: 36px;
+        font-size: 13px;
+        box-shadow: none;
+      }
+
+      button.link:hover:not(:disabled) {
+        color: var(--color-foreground);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      #status-section {
+        background: var(--bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        box-shadow: var(--shadow-sm);
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 220ms var(--ease-out),
+          transform 220ms var(--ease-out);
+        pointer-events: none;
+        display: block;
+        height: 0;
+        overflow: hidden;
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-bottom: 0;
+      }
+
+      #status-section.visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+        height: auto;
+        padding: var(--space-4);
+        margin-bottom: var(--space-5);
+      }
+
+      #status-text {
+        font-weight: 600;
+        margin-bottom: var(--space-3);
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+
+      #status-text.error {
+        color: var(--color-destructive);
+      }
+
+      progress {
+        width: 100%;
+        height: 8px;
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--bg-elevated);
+      }
+
+      progress::-webkit-progress-bar {
+        background: var(--bg-elevated);
+        border-radius: 999px;
+      }
+
+      progress::-webkit-progress-value {
+        background: linear-gradient(90deg, var(--color-accent), var(--color-primary));
+        border-radius: 999px;
+        transition: width 260ms var(--ease-out);
+      }
+
+      progress::-moz-progress-bar {
+        background: linear-gradient(90deg, var(--color-accent), var(--color-primary));
+        border-radius: 999px;
+      }
+
+      #progress-message {
+        color: var(--color-muted-fg);
+        font-size: 13px;
+        margin-top: var(--space-2);
+      }
+
+      #segments-section {
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 220ms var(--ease-out),
+          transform 220ms var(--ease-out);
+        display: block;
+        height: 0;
+        overflow: hidden;
+        margin-bottom: 0;
+      }
+
+      #segments-section.visible {
+        opacity: 1;
+        transform: translateY(0);
+        height: auto;
+        margin-bottom: var(--space-5);
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: var(--space-3);
+      }
+
+      h2 {
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .segment {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-3);
+        background: var(--bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        padding: var(--space-4);
+        margin-bottom: var(--space-3);
+        cursor: pointer;
+        transition:
+          border-color 180ms var(--ease-out),
+          background 180ms var(--ease-out),
+          transform 120ms var(--ease-out);
+      }
+
+      .segment:hover {
+        border-color: rgba(236, 72, 153, 0.45);
+      }
+
+      .segment.selected {
+        border-color: var(--color-primary);
+        background: rgba(236, 72, 153, 0.08);
+      }
+
+      .segment input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        margin-top: 2px;
+        accent-color: var(--color-primary);
+        cursor: pointer;
+      }
+
+      .segment-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+      }
+
+      .segment-meta {
+        color: var(--color-muted-fg);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        margin-top: var(--space-1);
+      }
+
+      .segment-reason {
+        color: var(--color-muted-fg);
+        font-size: 13px;
+        margin-top: var(--space-2);
+      }
+
+      .score {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(37, 99, 235, 0.14);
+        color: #60a5fa;
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #output-section {
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 220ms var(--ease-out),
+          transform 220ms var(--ease-out);
+        display: block;
+        height: 0;
+        overflow: hidden;
+        margin-bottom: 0;
+      }
+
+      #output-section.visible {
+        opacity: 1;
+        transform: translateY(0);
+        height: auto;
+        margin-bottom: var(--space-5);
+      }
+
+      .success-banner {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid rgba(34, 197, 94, 0.25);
+        color: var(--color-success);
+        border-radius: var(--radius);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-4);
+        font-weight: 600;
+      }
+
+      .success-banner svg {
+        flex-shrink: 0;
+      }
+
+      #files-list {
+        list-style: none;
+        padding: 0;
+        margin-bottom: var(--space-4);
+      }
+
+      #files-list li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        color: var(--color-muted-fg);
+        font-size: 13px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-2);
+      }
+
+      #files-list li span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .file-duration {
+        color: var(--color-muted-fg);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+      }
+
+      .empty-state {
+        color: var(--color-muted-fg);
+        font-size: 13px;
+        text-align: center;
+        padding: var(--space-5);
+        border: 1px dashed var(--color-border);
+        border-radius: var(--radius);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      @media (min-width: 640px) {
+        #job-form {
+          flex-direction: row;
+          align-items: flex-end;
+        }
+
+        .field {
+          flex: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand" aria-hidden="true">
+      <div class="brand-dot"></div>
+      <h1>AutoClip Lokal</h1>
+    </div>
+    <p class="subtitle">Video YouTube panjang &rarr; klip vertikal siap upload</p>
+
+    <section>
+      <form id="job-form" aria-label="Buat job baru">
+        <div class="field">
+          <label for="url-input">Link YouTube</label>
+          <input
+            id="url-input"
+            type="url"
+            placeholder="Tempel link YouTube di sini"
+            required
+            autocomplete="off"
+          />
+          <span class="helper">Tempel URL video YouTube yang ingin dijadikan klip vertikal.</span>
+        </div>
+        <button id="submit-btn" type="submit">Ambil Transkrip</button>
+      </form>
+    </section>
+
+    <section id="status-section" aria-live="polite">
+      <p id="status-text"></p>
+      <progress id="progress-bar" max="100" value="0"></progress>
+      <p id="progress-message"></p>
+    </section>
+
+    <section id="segments-section" aria-live="polite">
+      <div class="section-header">
+        <h2>Segmen kandidat</h2>
+        <div>
+          <button id="select-all-btn" class="link" type="button">Pilih semua</button>
+          <button id="clear-btn" class="link" type="button">Batal pilih</button>
+        </div>
+      </div>
+      <div id="segments"></div>
+      <button id="render-btn" disabled>Render Terpilih</button>
+    </section>
+
+    <section id="output-section" aria-live="polite">
+      <div class="success-banner">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          aria-hidden="true"
+        >
+          <path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Render selesai &mdash; klip siap dibuka</span>
+      </div>
+      <ul id="files-list"></ul>
+      <button id="open-folder-btn" class="secondary" type="button">Buka Folder Output</button>
+    </section>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
