@@ -13,6 +13,8 @@ extraResources:
     to: backend
     filter:
       - "**/*"
+  - from: build/.env
+    to: .env
 mac:
   target:
     - dmg
