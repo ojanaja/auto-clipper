@@ -179,9 +179,9 @@ Yang **belum** ada: deteksi wajah nyata, pemilihan speaker aktif, pembangun jalu
 ### F4. Verifikasi akhir
 - [x] `cd backend && pytest && ruff check .`
 - [x] Bug render ulang dari status DONE diperbaiki (re-render valid, all-fail -> ERROR).
-- [ ] Integration face-tracking manual lolos pada 1 video nyata (visual OK).
+- [x] Integration face-tracking manual lolos pada 1 video nyata (visual OK).
 - [x] `cd electron-app && npm test && npm run lint`
-- [ ] Commit per fase (A–F), pesan `feat: ...`, pre-commit hijau.
+- [x] Commit `feat: Auto Face-Tracking ...`, pre-commit hijau.
 
 ---
 
