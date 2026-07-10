@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from config import AppConfig, ConfigError, load_config, save_config
 from job_manager import JobManager, JobNotFoundError
 from orchestrator import PipelineOrchestrator
 from progress import ProgressBroadcaster
@@ -30,6 +31,23 @@ class CreateJobRequest(BaseModel):
 
 class RenderRequest(BaseModel):
     segment_ids: list[str] = Field(min_length=1)
+
+
+class ConfigUpdate(BaseModel):
+    aspect_ratio: str | None = None
+    resolution: int | None = None
+    duration_min: int | None = None
+    duration_max: int | None = None
+    subtitle_enabled: bool | None = None
+    subtitle_font_size: int | None = None
+    whisper_model: str | None = None
+    segment_count: int | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    gemini_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    encoder: str | None = None
+    output_dir: str | None = None
 
 
 def _get_job_or_404(job_id: str):
@@ -113,6 +131,34 @@ def output_files(job_id: str):
                 }
             )
     return {"files": files}
+
+
+@app.get("/config")
+def get_config():
+    cfg = load_config()
+    return cfg.to_public_dict()
+
+
+@app.put("/config")
+def update_config(update: ConfigUpdate):
+    cfg = load_config()
+    update_dict = update.model_dump(exclude_unset=True)
+
+    # API key kosong/absen tidak boleh menghapus key lama.
+    for key_field in ("gemini_api_key", "anthropic_api_key"):
+        if key_field in update_dict and not update_dict[key_field]:
+            update_dict.pop(key_field)
+
+    # Field tak dikenang sudah diabaikan Pydantic; unknown juga diabaikan
+    # (FastAPI/Pydantic v2 otomatis menolak unknown, jadi tidak perlu filter).
+    new_cfg = AppConfig.from_dict({**cfg.to_dict(), **update_dict})
+    try:
+        new_cfg.validate()
+    except ConfigError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    save_config(new_cfg)
+    return new_cfg.to_public_dict()
 
 
 @app.websocket("/ws/jobs/{job_id}")
