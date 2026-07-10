@@ -2,11 +2,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
+from config import AppConfig
 from job_manager import JobManager, JobStatus
 from orchestrator import PipelineOrchestrator
+from pipeline.face_detect import Detection
 from pipeline.highlight import Segment
+from pipeline.reframe import BBox
 from pipeline.transcribe import TranscriptWord
 
 URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
@@ -248,6 +252,31 @@ def test_render_unknown_segment_id_rejected(manager, broadcaster, deps, tmp_path
         )
 
 
+def test_render_all_clips_fail_sets_job_error(manager, broadcaster, deps, tmp_path):
+    job = _ready_job(manager, deps, broadcaster)
+    deps["render_fn"].side_effect = RuntimeError("encoder crash")
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0", "1"], output_dir=tmp_path
+    )
+
+    assert job.clips["0"]["status"] == "error"
+    assert job.clips["1"]["status"] == "error"
+    assert job.status == JobStatus.ERROR
+    assert "Semua klip gagal" in job.error
+
+
+def test_render_can_rerun_from_done(manager, broadcaster, deps, tmp_path):
+    job = _ready_job(manager, deps, broadcaster)
+    orch = _orchestrator(manager, broadcaster, deps)
+
+    orch.run_render(job.job_id, segment_ids=["0"], output_dir=tmp_path)
+    assert job.status == JobStatus.DONE
+
+    orch.run_render(job.job_id, segment_ids=["1"], output_dir=tmp_path)
+    assert job.status == JobStatus.DONE
+    assert job.clips["1"]["status"] == "done"
+
+
 def test_render_output_filenames_safe(manager, broadcaster, deps, tmp_path):
     deps["highlight_fn"].return_value = [
         Segment(start=0, end=5, score=50, title="Judul/Aneh: <ok>?", reason="r")
@@ -303,3 +332,25 @@ def test_render_uses_config_for_output_settings(manager, broadcaster, deps, tmp_
     assert kwargs["subtitle_enabled"] is False
     assert kwargs["subtitle_font_size"] == 64
     assert kwargs["encoder"] == "libx264"
+
+
+def test_render_face_tracking_passes_crop_path(manager, broadcaster, deps, tmp_path, monkeypatch):
+    monkeypatch.setattr("orchestrator.probe_dimensions", lambda path: (1920, 1080))
+    monkeypatch.setattr(
+        "orchestrator.compute_motion_scores", lambda frames, scale, tl: [(0.0, {0: 0.5})]
+    )
+
+    cfg = AppConfig(face_tracking_enabled=True, face_sample_fps=2, speaker_min_dwell_s=0.4)
+    deps["config_provider"] = lambda: cfg
+    det = Detection(bbox=BBox(900, 400, 120, 120), landmarks={}, score=0.9)
+    deps["detect_faces_fn"] = lambda *a, **kw: [(0.0, [det])]
+    deps["sample_frames_fn"] = lambda *a, **kw: ({0.0: np.zeros((360, 640, 3))}, 1 / 3)
+    deps["build_active_timeline_fn"] = lambda timeline, scores, **kw: [(0.0, det)]
+    deps["build_crop_path_fn"] = lambda fw, fh, at, ratio: [(0.0, BBox(100, 200, 606, 1080))]
+
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["crop_path"] is not None

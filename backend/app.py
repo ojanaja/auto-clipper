@@ -48,6 +48,9 @@ class ConfigUpdate(BaseModel):
     anthropic_api_key: str | None = None
     encoder: str | None = None
     output_dir: str | None = None
+    face_tracking_enabled: bool | None = None
+    face_sample_fps: int | None = None
+    speaker_min_dwell_s: float | None = None
 
 
 def _get_job_or_404(job_id: str):

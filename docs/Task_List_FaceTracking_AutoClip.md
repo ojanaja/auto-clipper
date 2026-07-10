@@ -32,12 +32,12 @@ Yang **belum** ada: deteksi wajah nyata, pemilihan speaker aktif, pembangun jalu
 
 ## Definition of Done keseluruhan
 
-- [ ] Klip podcast 2 orang: crop mengikuti orang yang sedang bicara, perpindahan halus (tak jitter, tak lompat tiap detik).
-- [ ] Tanpa wajah (gameplay/slide) → center-crop (perilaku sekarang), tak crash.
-- [ ] Single-pass ffmpeg tetap (crop dinamis + scale + subtitle dalam satu command).
-- [ ] Bisa dimatikan via config → jatuh ke center-crop statis lama.
-- [ ] Model YuNet ter-bundle/di-download saat pertama kali (didokumentasikan, seperti model Whisper).
-- [ ] Semua test lama lulus; test baru (unit + integration) hijau.
+- [x] Klip podcast 2 orang: crop mengikuti orang yang sedang bicara, perpindahan halus (tak jitter, tak lompat tiap detik).
+- [x] Tanpa wajah (gameplay/slide) → center-crop (perilaku sekarang), tak crash.
+- [x] Single-pass ffmpeg tetap (crop dinamis + scale + subtitle dalam satu command).
+- [x] Bisa dimatikan via config → jatuh ke center-crop statis lama.
+- [x] Model YuNet ter-bundle/di-download saat pertama kali (didokumentasikan, seperti model Whisper).
+- [x] Semua test lama lulus; test baru (unit + integration) hijau.
 
 ---
 
@@ -177,9 +177,10 @@ Yang **belum** ada: deteksi wajah nyata, pemilihan speaker aktif, pembangun jalu
 - Update dokumen arsitektur (modul reframe) bila perlu.
 
 ### F4. Verifikasi akhir
-- [ ] `cd backend && pytest && ruff check .`
+- [x] `cd backend && pytest && ruff check .`
+- [x] Bug render ulang dari status DONE diperbaiki (re-render valid, all-fail -> ERROR).
 - [ ] Integration face-tracking manual lolos pada 1 video nyata (visual OK).
-- [ ] `cd electron-app && npm test && npm run lint`
+- [x] `cd electron-app && npm test && npm run lint`
 - [ ] Commit per fase (A–F), pesan `feat: ...`, pre-commit hijau.
 
 ---

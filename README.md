@@ -66,6 +66,9 @@ Buka panel **Pengaturan** di app untuk mengubah opsi; perubahan langsung berlaku
 | LLM model | Model spesifik; kosong = default provider |
 | API key | Gemini/Anthropic key (disimpan lokal) |
 | Encoder | `auto`, `libx264`, `h264_videotoolbox`, `h264_nvenc` |
+| Face Tracking | Auto Face-Tracking: deteksi & ikuti wajah speaker aktif (default OFF) |
+| Sampling FPS Wajah | 1–5 fps untuk analisis wajah (default 2) |
+| Min. Dwell Speaker | Durasi minimum sebelum pindah speaker, detik (default 1.5) |
 | Folder output | Lokasi hasil render; kosong = `~/Movies/AutoClip` |
 
 **Catatan keamanan MVP:** API key disimpan **plaintext** di JSON lokal. Ini sengaja untuk single-user localhost; file config hanya boleh diakses user sendiri. Untuk reset, hapus file `config.json` — app akan kembali ke default.
@@ -106,11 +109,11 @@ Output installer ada di `electron-app/dist/`:
 ## QA & Rilis
 
 - Fase 10 (QA, Bug Bash & Rilis) telah menyelesaikan smoke test pipeline nyata dengan video publik.
-- Semua test unit & integration lulus: ~200 pytest, 22 Jest, 3 Playwright E2E, 1 integration real-video.
+- Semua test unit & integration lulus: 232 pytest, 22 Jest, 3 Playwright E2E, 1 integration real-video.
 - Known issues / keterbatasan MVP:
   - Beberapa video YouTube butuh JS runtime (Deno/Node) agar yt-dlp bisa mengekstrak semua format; app biasanya tetap bisa mengunduh video umum.
   - Waktu transkripsi pertama kali lebih lama karena download model Whisper (~150 MB).
-  - Render menggunakan center-crop (belum deteksi wajah otomatis).
+  - Face tracking mati secara default; aktifkan di Settings bila ingin crop mengikuti wajah speaker.
   - Installer unsigned: di macOS mungkin muncul peringatan Gatekeeper, pilih klik kanan → Open.
 
 ## Testing

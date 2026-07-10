@@ -378,6 +378,9 @@ function setupSettings(doc) {
     setValue("output_dir", cfg.output_dir);
     setChecked("subtitle_enabled", cfg.subtitle_enabled);
     setValue("subtitle_font_size", cfg.subtitle_font_size);
+    setChecked("face_tracking_enabled", cfg.face_tracking_enabled);
+    setValue("face_sample_fps", cfg.face_sample_fps);
+    setValue("speaker_min_dwell_s", cfg.speaker_min_dwell_s);
     setValue("whisper_model", cfg.whisper_model);
     setValue("segment_count", cfg.segment_count);
     setValue("duration_min", cfg.duration_min);
@@ -402,6 +405,9 @@ function setupSettings(doc) {
       duration_max: parseInt(form.elements.duration_max.value, 10),
       subtitle_enabled: form.elements.subtitle_enabled.checked,
       subtitle_font_size: parseInt(form.elements.subtitle_font_size.value, 10),
+      face_tracking_enabled: form.elements.face_tracking_enabled.checked,
+      face_sample_fps: parseInt(form.elements.face_sample_fps.value, 10),
+      speaker_min_dwell_s: parseFloat(form.elements.speaker_min_dwell_s.value),
       whisper_model: form.elements.whisper_model.value,
       segment_count: parseInt(form.elements.segment_count.value, 10),
       llm_provider: form.elements.llm_provider.value,

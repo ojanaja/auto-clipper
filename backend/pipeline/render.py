@@ -2,8 +2,9 @@ import subprocess
 import uuid
 from pathlib import Path
 
+from pipeline.crop_expr import build_crop_x_expr, build_crop_y_expr
 from pipeline.highlight import Segment
-from pipeline.reframe import compute_crop_box
+from pipeline.reframe import CropBox, compute_crop_box
 from pipeline.subtitle import generate_ass
 from pipeline.transcribe import TranscriptWord
 
@@ -70,6 +71,7 @@ def render_segment(
     subtitle_enabled: bool = True,
     subtitle_font_size: int = 80,
     encoder: str = "auto",
+    crop_path: list[tuple[float, CropBox]] | None = None,
 ) -> Path:
     """Render satu segmen: cut + crop target ratio + scale + burn subtitle dalam satu pass ffmpeg.
 
@@ -83,10 +85,19 @@ def render_segment(
         RenderError: ffprobe/ffmpeg gagal.
     """
     frame_w, frame_h = probe_dimensions(source_path)
-    crop = compute_crop_box(frame_w, frame_h, faces=[], target_ratio=target_ratio)
+
+    if crop_path:
+        crop_w = round(crop_path[0][1].w)
+        crop_h = round(crop_path[0][1].h)
+        x_expr = build_crop_x_expr(crop_path, segment.start, frame_w, crop_w)
+        y_expr = build_crop_y_expr(crop_path, segment.start, frame_h, crop_h)
+        crop_filter = f"crop={crop_w}:{crop_h}:x='{x_expr}':y='{y_expr}'"
+    else:
+        crop = compute_crop_box(frame_w, frame_h, faces=[], target_ratio=target_ratio)
+        crop_filter = f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y}"
 
     vf_parts = [
-        f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y}",
+        crop_filter,
         f"scale={output_width}:{output_height}",
     ]
 

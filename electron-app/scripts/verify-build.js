@@ -87,6 +87,10 @@ function main() {
     if (exists(ffprobe)) ok("ffprobe bundled");
     else fail(`Missing ffprobe: ${ffprobe}`);
 
+    const yunetModel = path.join(resourcesDir, "backend", "models", "face_detection_yunet_2023mar.onnx");
+    if (exists(yunetModel)) ok("YuNet face-detection model bundled");
+    else fail(`Missing YuNet model: ${yunetModel}`);
+
     // Renderer files are inside app.asar; verify the asar archive or unpacked package.
     const asarArchive = path.join(resourcesDir, "app.asar");
     const asarPackage = path.join(resourcesDir, "app", "package.json");

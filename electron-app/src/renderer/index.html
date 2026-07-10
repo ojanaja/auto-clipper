@@ -884,6 +884,22 @@
           </fieldset>
 
           <fieldset>
+            <legend>Face Tracking</legend>
+            <div class="field" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+              <input id="cfg-face-tracking-enabled" name="face_tracking_enabled" type="checkbox" />
+              <label for="cfg-face-tracking-enabled" style="margin: 0;">Auto Face-Tracking</label>
+            </div>
+            <div class="field">
+              <label for="cfg-face-sample-fps">Sampling FPS Wajah</label>
+              <input id="cfg-face-sample-fps" name="face_sample_fps" type="number" min="1" max="5" />
+            </div>
+            <div class="field">
+              <label for="cfg-speaker-min-dwell">Min. Dwell Speaker (detik)</label>
+              <input id="cfg-speaker-min-dwell" name="speaker_min_dwell_s" type="number" min="0" max="5" step="0.1" />
+            </div>
+          </fieldset>
+
+          <fieldset>
             <legend>Analisis AI</legend>
             <div class="field">
               <label for="cfg-whisper-model">Model Whisper</label>

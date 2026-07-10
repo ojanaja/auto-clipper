@@ -16,6 +16,7 @@ electron-app/build/
 # App runtime data
 *.log
 tests/fixtures/*.mp4
+backend/models/
 
 # OS
 .DS_Store

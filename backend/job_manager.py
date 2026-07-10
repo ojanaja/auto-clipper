@@ -96,3 +96,11 @@ class JobManager:
             raise ValueError(f"Progress harus 0-100, dapat: {progress}")
         job.progress = progress
         return job
+
+    def reset_for_render(self, job_id: str) -> Job:
+        """Izinkan render ulang dari status terminal (DONE/ERROR) -> READY."""
+        job = self.get_job(job_id)
+        if job.status in _TERMINAL:
+            job.status = JobStatus.READY
+            job.error = None
+        return job

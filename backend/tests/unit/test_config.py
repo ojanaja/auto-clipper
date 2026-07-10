@@ -29,6 +29,9 @@ def test_default_config_matches_table():
     assert cfg.anthropic_api_key == ""
     assert cfg.encoder == "auto"
     assert cfg.output_dir == ""
+    assert cfg.face_tracking_enabled is False
+    assert cfg.face_sample_fps == 2
+    assert cfg.speaker_min_dwell_s == 1.5
 
 
 @pytest.mark.parametrize(
@@ -194,3 +197,10 @@ def test_resolve_output_dir_uses_fallback_when_empty():
 def test_resolve_output_dir_default_fallback():
     cfg = AppConfig(output_dir="")
     assert resolve_output_dir(cfg) == Path.home() / "Movies" / "AutoClip"
+
+
+def test_face_tracking_config_validation():
+    with pytest.raises(ConfigError):
+        AppConfig(face_sample_fps=0).validate()
+    with pytest.raises(ConfigError):
+        AppConfig(speaker_min_dwell_s=6.0).validate()

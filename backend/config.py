@@ -46,6 +46,9 @@ class AppConfig:
     anthropic_api_key: str = ""
     encoder: str = "auto"
     output_dir: str = ""
+    face_tracking_enabled: bool = False
+    face_sample_fps: int = 2
+    speaker_min_dwell_s: float = 1.5
 
     def validate(self) -> None:
         """Validasi nilai config; raise ConfigError bila invalid."""
@@ -79,6 +82,10 @@ class AppConfig:
             )
         if self.subtitle_font_size < 24 or self.subtitle_font_size > 160:
             raise ConfigError("subtitle_font_size harus antara 24 dan 160")
+        if self.face_sample_fps < 1 or self.face_sample_fps > 5:
+            raise ConfigError("face_sample_fps harus antara 1 dan 5")
+        if self.speaker_min_dwell_s < 0.0 or self.speaker_min_dwell_s > 5.0:
+            raise ConfigError("speaker_min_dwell_s harus antara 0.0 dan 5.0")
 
     def target_ratio(self) -> float:
         """Kembalikan rasio sebagai float (w/h)."""

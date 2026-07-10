@@ -17,6 +17,9 @@ const MOCK_CONFIG = {
   anthropic_key_set: false,
   encoder: "auto",
   output_dir: "",
+  face_tracking_enabled: false,
+  face_sample_fps: 2,
+  speaker_min_dwell_s: 1.5,
 };
 
 test("panel settings load, edit, dan save config", async () => {

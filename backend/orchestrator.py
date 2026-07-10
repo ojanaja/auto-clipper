@@ -4,10 +4,13 @@ from pathlib import Path
 
 from config import load_config, resolve_output_dir
 from job_manager import JobManager, JobStatus
+from pipeline.crop_path import build_crop_path
 from pipeline.download import download_video
+from pipeline.face_detect import detect_faces_sampled, sample_frames
 from pipeline.highlight import find_highlights
 from pipeline.llm_client import make_llm_client
-from pipeline.render import render_segment
+from pipeline.render import probe_dimensions, render_segment
+from pipeline.speaker import build_active_timeline, compute_motion_scores
 from pipeline.transcribe import transcribe_audio
 
 
@@ -34,6 +37,10 @@ class PipelineOrchestrator:
         llm_client=None,
         work_root: Path | None = None,
         config_provider=load_config,
+        detect_faces_fn=detect_faces_sampled,
+        sample_frames_fn=sample_frames,
+        build_active_timeline_fn=build_active_timeline,
+        build_crop_path_fn=build_crop_path,
     ):
         self._jobs = job_manager
         self._broadcaster = broadcaster
@@ -43,6 +50,10 @@ class PipelineOrchestrator:
         self._render = render_fn
         self._llm_client = llm_client
         self._config_provider = config_provider
+        self._detect_faces = detect_faces_fn
+        self._sample_frames = sample_frames_fn
+        self._build_active_timeline = build_active_timeline_fn
+        self._build_crop_path = build_crop_path_fn
         self._work_root = Path(work_root or tempfile.gettempdir()) / "autoclip"
 
     def _publish(self, job_id: str, stage: str, progress: int, message: str = ""):
@@ -111,6 +122,7 @@ class PipelineOrchestrator:
 
         Kegagalan satu klip tidak menghentikan klip lain — job tetap selesai
         dengan clip status error per segmen yang gagal (sesuai PRD keandalan).
+        Job bisa di-render ulang dari status DONE/ERROR.
 
         ponytail: render sekuensial (concurrency 1); paralel terbatas kalau
         render batch besar terasa lambat di device ber-GPU.
@@ -120,53 +132,111 @@ class PipelineOrchestrator:
             if not seg_id.isdigit() or int(seg_id) >= len(job.segments):
                 raise ValueError(f"Segment id tidak dikenal: {seg_id}")
 
-        cfg = self._config_provider()
-        if output_dir is None:
-            output_dir = resolve_output_dir(cfg)
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        work_dir = self._work_root / job_id
-        work_dir.mkdir(parents=True, exist_ok=True)
+        # Izinkan render ulang setelah selesai/gagal sebelumnya.
+        self._jobs.reset_for_render(job_id)
 
-        output_width, output_height = cfg.output_dimensions()
-        target_ratio = cfg.target_ratio()
+        try:
+            cfg = self._config_provider()
+            if output_dir is None:
+                output_dir = resolve_output_dir(cfg)
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            work_dir = self._work_root / job_id
+            work_dir.mkdir(parents=True, exist_ok=True)
 
-        self._jobs.transition(job_id, JobStatus.RENDERING)
-        total = len(segment_ids)
-        for i, seg_id in enumerate(segment_ids):
-            segment = job.segments[int(seg_id)]
-            filename = f"{job_id[:8]}_{seg_id}_{_safe_filename(segment.title)}.mp4"
-            output_path = output_dir / filename
-            job.clips[seg_id] = {"status": "rendering", "progress": 0, "path": None}
+            output_width, output_height = cfg.output_dimensions()
+            target_ratio = cfg.target_ratio()
+            face_tracking_enabled = cfg.face_tracking_enabled
 
-            def on_clip_progress(clip_pct, _msg, i=i, seg_id=seg_id):
-                # Petakan progress klip ke progress keseluruhan batch.
-                overall = (i * 100 + clip_pct) // total
-                job.clips[seg_id]["progress"] = clip_pct
-                self._publish(
-                    job_id, "rendering", overall, f"Klip {i + 1}/{total} • {clip_pct}%"
-                )
+            frame_w, frame_h = 0, 0
+            if face_tracking_enabled and job.video_path:
+                try:
+                    frame_w, frame_h = probe_dimensions(job.video_path)
+                except Exception:
+                    face_tracking_enabled = False
 
-            on_clip_progress(0, "")
-            try:
-                self._render(
-                    job.video_path,
-                    segment,
-                    job.words,
-                    output_path,
-                    work_dir=work_dir,
-                    progress_cb=on_clip_progress,
-                    target_ratio=target_ratio,
-                    output_width=output_width,
-                    output_height=output_height,
-                    subtitle_enabled=cfg.subtitle_enabled,
-                    subtitle_font_size=cfg.subtitle_font_size,
-                    encoder=cfg.encoder,
-                )
-                job.clips[seg_id] = {"status": "done", "progress": 100, "path": str(output_path)}
-            except Exception as e:
-                job.clips[seg_id] = {"status": "error", "progress": 0, "path": None}
-                self._publish(job_id, "rendering", i * 100 // total, f"Klip {seg_id} gagal: {e}")
+            self._jobs.transition(job_id, JobStatus.RENDERING)
+            total = len(segment_ids)
+            successes = 0
+            for i, seg_id in enumerate(segment_ids):
+                segment = job.segments[int(seg_id)]
+                filename = f"{job_id[:8]}_{seg_id}_{_safe_filename(segment.title)}.mp4"
+                output_path = output_dir / filename
+                job.clips[seg_id] = {"status": "rendering", "progress": 0, "path": None}
 
-        self._jobs.transition(job_id, JobStatus.DONE)
-        self._publish(job_id, "done", 100, "Render selesai")
+                def on_clip_progress(clip_pct, _msg, i=i, seg_id=seg_id):
+                    # Petakan progress klip ke progress keseluruhan batch.
+                    overall = (i * 100 + clip_pct) // total
+                    job.clips[seg_id]["progress"] = clip_pct
+                    self._publish(
+                        job_id, "rendering", overall, f"Klip {i + 1}/{total} • {clip_pct}%"
+                    )
+
+                on_clip_progress(0, "")
+                crop_path = None
+                try:
+                    if face_tracking_enabled:
+                        timeline = self._detect_faces(
+                            job.video_path,
+                            segment.start,
+                            segment.end,
+                            fps=cfg.face_sample_fps,
+                        )
+                        frames, scale = self._sample_frames(
+                            job.video_path,
+                            segment.start,
+                            segment.end,
+                            fps=cfg.face_sample_fps,
+                        )
+                        motion_scores = compute_motion_scores(frames, scale, timeline)
+                        active_timeline = self._build_active_timeline(
+                            timeline, motion_scores, min_dwell_s=cfg.speaker_min_dwell_s
+                        )
+                        crop_path = self._build_crop_path(
+                            frame_w, frame_h, active_timeline, target_ratio
+                        )
+                except Exception as e:
+                    self._publish(
+                        job_id,
+                        "rendering",
+                        i * 100 // total,
+                        f"Face-tracking gagal untuk klip {seg_id}, fallback center: {e}",
+                    )
+
+                try:
+                    self._render(
+                        job.video_path,
+                        segment,
+                        job.words,
+                        output_path,
+                        work_dir=work_dir,
+                        progress_cb=on_clip_progress,
+                        target_ratio=target_ratio,
+                        output_width=output_width,
+                        output_height=output_height,
+                        subtitle_enabled=cfg.subtitle_enabled,
+                        subtitle_font_size=cfg.subtitle_font_size,
+                        encoder=cfg.encoder,
+                        crop_path=crop_path,
+                    )
+                    job.clips[seg_id] = {
+                        "status": "done",
+                        "progress": 100,
+                        "path": str(output_path),
+                    }
+                    successes += 1
+                except Exception as e:
+                    job.clips[seg_id] = {"status": "error", "progress": 0, "path": None}
+                    self._publish(
+                        job_id, "rendering", i * 100 // total, f"Klip {seg_id} gagal: {e}"
+                    )
+
+            if successes:
+                self._jobs.transition(job_id, JobStatus.DONE)
+                self._publish(job_id, "done", 100, "Render selesai")
+            else:
+                self._jobs.transition(job_id, JobStatus.ERROR, error="Semua klip gagal dirender")
+                self._publish(job_id, "error", 0, "Semua klip gagal dirender")
+        except Exception as e:
+            self._jobs.transition(job_id, JobStatus.ERROR, error=str(e))
+            self._publish(job_id, "error", 0, str(e))

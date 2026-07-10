@@ -231,6 +231,9 @@ describe("pengaturan", () => {
     anthropic_key_set: false,
     encoder: "libx264",
     output_dir: "/tmp/out",
+    face_tracking_enabled: true,
+    face_sample_fps: 3,
+    speaker_min_dwell_s: 1.2,
   };
 
   async function openSettings() {
@@ -254,6 +257,9 @@ describe("pengaturan", () => {
     expect(document.getElementById("cfg-aspect-ratio").value).toBe("1:1");
     expect(document.getElementById("cfg-resolution").value).toBe("720");
     expect(document.getElementById("cfg-subtitle-enabled").checked).toBe(true);
+    expect(document.getElementById("cfg-face-tracking-enabled").checked).toBe(true);
+    expect(document.getElementById("cfg-face-sample-fps").value).toBe("3");
+    expect(document.getElementById("cfg-speaker-min-dwell").value).toBe("1.2");
     expect(document.getElementById("cfg-output-dir").value).toBe("/tmp/out");
     expect(document.getElementById("gemini-key-set")).not.toHaveAttribute("hidden");
     expect(document.getElementById("anthropic-key-set")).toHaveAttribute("hidden");
@@ -278,6 +284,9 @@ describe("pengaturan", () => {
     expect(body.duration_min).toBe(25);
     expect(body.aspect_ratio).toBe("1:1");
     expect(body.subtitle_enabled).toBe(true);
+    expect(body.face_tracking_enabled).toBe(true);
+    expect(body.face_sample_fps).toBe(3);
+    expect(body.speaker_min_dwell_s).toBe(1.2);
     // API key kosong tidak dikirim supaya tidak menghapus key tersimpan.
     expect(body).not.toHaveProperty("gemini_api_key");
     expect(body).not.toHaveProperty("anthropic_api_key");

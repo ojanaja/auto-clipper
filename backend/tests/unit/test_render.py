@@ -221,3 +221,22 @@ def test_render_segment_auto_encoder_omits_video_codec(mocker, tmp_path):
     render_segment("source.mp4", SEGMENT, WORDS, tmp_path / "c.mp4", work_dir=tmp_path)
     ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
     assert "-c:v" not in ffmpeg_cmd
+
+
+def test_render_segment_dynamic_crop_path(mocker, tmp_path):
+    from pipeline.reframe import CropBox
+
+    calls = _fake_run_factory(mocker)
+    crop_path = [
+        (10.0, CropBox(x=100, y=200, w=606, h=1080)),
+        (11.0, CropBox(x=300, y=200, w=606, h=1080)),
+    ]
+    render_segment(
+        "source.mp4", SEGMENT, WORDS, tmp_path / "c.mp4", work_dir=tmp_path, crop_path=crop_path
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    vf = ffmpeg_cmd[ffmpeg_cmd.index("-vf") + 1]
+    assert "crop=606:1080:x='" in vf
+    assert "between(" in vf
+    assert "lerp(" in vf
+    assert "scale=1080:1920" in vf

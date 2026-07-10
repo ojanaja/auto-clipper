@@ -5,6 +5,7 @@ websockets
 yt-dlp
 faster-whisper
 anthropic
+opencv-python
 
 pytest
 pytest-mock
