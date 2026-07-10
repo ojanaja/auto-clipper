@@ -67,6 +67,40 @@ def test_progress_hook_maps_percent():
     assert seen[-1][0] == 100
 
 
+def test_progress_hook_includes_speed_and_eta():
+    seen = []
+    hook = _make_progress_hook(lambda pct, msg: seen.append(msg))
+
+    hook(
+        {
+            "status": "downloading",
+            "downloaded_bytes": 5_242_880,
+            "total_bytes": 10_485_760,
+            "speed": 3_355_443,  # ~3.2 MB/s
+            "eta": 277,  # 4:37
+        }
+    )
+    msg = seen[-1]
+    assert "3.2 MB/s" in msg
+    assert "4:37" in msg
+
+
+def test_progress_hook_handles_missing_speed_eta():
+    seen = []
+    hook = _make_progress_hook(lambda pct, msg: seen.append(msg))
+    # speed/eta None di awal unduhan -> tak crash, tak tampilkan bagian itu.
+    hook(
+        {
+            "status": "downloading",
+            "downloaded_bytes": 1_048_576,
+            "total_bytes": 10_485_760,
+            "speed": None,
+            "eta": None,
+        }
+    )
+    assert "MB/s" not in seen[-1]
+
+
 def test_download_registers_progress_hook_when_cb_given(fake_ydl, tmp_path, mocker):
     cls = mocker.patch("pipeline.download.YoutubeDL")
     cls.return_value.__enter__.return_value = fake_ydl

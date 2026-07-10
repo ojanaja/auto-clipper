@@ -81,6 +81,12 @@ def _make_progress_hook(progress_cb):
             msg = f"Mengunduh {done / 1_048_576:.1f} MB"
             if total:
                 msg += f" / {total / 1_048_576:.1f} MB"
+            speed = d.get("speed")
+            if speed:
+                msg += f" • {speed / 1_048_576:.1f} MB/s"
+            eta = d.get("eta")
+            if eta:
+                msg += f" • ETA {int(eta) // 60}:{int(eta) % 60:02d}"
             progress_cb(pct, msg)
         elif status == "finished":
             progress_cb(100, "Unduhan selesai, memproses")
