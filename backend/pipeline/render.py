@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 import uuid
@@ -12,6 +13,26 @@ from pipeline.transcribe import TranscriptWord
 
 class RenderError(Exception):
     pass
+
+
+_ASS_FILTER_AVAILABLE: bool | None = None
+
+
+def _ass_filter_available() -> bool:
+    """Cek apakah ffmpeg build ini punya filter 'ass' (libass)."""
+    global _ASS_FILTER_AVAILABLE
+    if _ASS_FILTER_AVAILABLE is not None:
+        return _ASS_FILTER_AVAILABLE
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-filters"], capture_output=True, text=True, timeout=10
+        )
+        _ASS_FILTER_AVAILABLE = bool(
+            re.search(r"^\s*\S+\s+\bass\b", result.stdout, re.MULTILINE)
+        )
+    except Exception:
+        _ASS_FILTER_AVAILABLE = False
+    return _ASS_FILTER_AVAILABLE
 
 
 def probe_dimensions(video_path: str | Path) -> tuple[int, int]:
@@ -103,18 +124,26 @@ def render_segment(
     ]
 
     if subtitle_enabled:
-        segment_words = [w for w in words if segment.start <= w.start and w.end <= segment.end]
-        ass_path = Path(work_dir) / f"sub_{uuid.uuid4().hex[:8]}.ass"
-        ass_path.write_text(
-            generate_ass(
-                segment_words,
-                segment_start=segment.start,
-                font_size=subtitle_font_size,
-                output_width=output_width,
-                output_height=output_height,
+        if _ass_filter_available():
+            segment_words = [w for w in words if segment.start <= w.start and w.end <= segment.end]
+            ass_path = Path(work_dir) / f"sub_{uuid.uuid4().hex[:8]}.ass"
+            ass_path.write_text(
+                generate_ass(
+                    segment_words,
+                    segment_start=segment.start,
+                    font_size=subtitle_font_size,
+                    output_width=output_width,
+                    output_height=output_height,
+                )
             )
-        )
-        vf_parts.append(f"ass=filename={ass_path}")
+            vf_parts.append(f"ass=filename={ass_path}")
+        else:
+            print(
+                "WARNING: ffmpeg build ini tidak mendukung filter 'ass' (libass); "
+                "subtitle tidak diburn.",
+                file=sys.stderr,
+                flush=True,
+            )
 
     vf = ",".join(vf_parts)
     video_codec = _resolve_encoder(encoder)

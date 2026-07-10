@@ -22,13 +22,15 @@ WORDS = [
 
 
 def _fake_run_factory(mocker, ffprobe_out="1920,1080"):
-    """Mock subprocess.run: ffprobe kembalikan dimensi, ffmpeg sukses."""
+    """Mock subprocess.run: ffprobe kembalikan dimensi, ffmpeg sukses, filter ass tersedia."""
     calls = []
 
     def fake_run(cmd, **kwargs):
         calls.append(cmd)
         if cmd[0] == "ffprobe":
             return SimpleNamespace(returncode=0, stdout=ffprobe_out, stderr="")
+        if cmd[0] == "ffmpeg" and "-filters" in cmd:
+            return SimpleNamespace(returncode=0, stdout=" ... ass \n", stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     mocker.patch("pipeline.render.subprocess.run", side_effect=fake_run)
@@ -55,7 +57,7 @@ def test_render_segment_builds_single_pass_command(mocker, tmp_path):
 
     render_segment("source.mp4", SEGMENT, WORDS, output, work_dir=tmp_path)
 
-    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg" and "-ss" in c)
     joined = " ".join(ffmpeg_cmd)
     # Cut sesuai timestamp segmen.
     assert "-ss" in ffmpeg_cmd and "10.0" in ffmpeg_cmd
@@ -121,6 +123,7 @@ def _fake_popen(mocker, lines, returncode=0):
         "pipeline.render.subprocess.run",
         return_value=SimpleNamespace(returncode=0, stdout="1920,1080", stderr=""),
     )
+    mocker.patch("pipeline.render._ass_filter_available", return_value=True)
     proc = mocker.MagicMock()
     proc.stdout = iter(lines)
     proc.stderr.read.return_value = "" if returncode == 0 else "encoder error"
