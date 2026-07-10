@@ -1,7 +1,11 @@
 import pytest
 from yt_dlp.utils import DownloadError
 
-from pipeline.download import VideoUnavailableError, download_video
+from pipeline.download import (
+    VideoUnavailableError,
+    _make_progress_hook,
+    download_video,
+)
 
 URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
@@ -39,6 +43,48 @@ def test_download_returns_metadata(fake_ydl, tmp_path):
 def test_download_calls_extract_info_with_url(fake_ydl, tmp_path):
     download_video(URL, tmp_path)
     fake_ydl.extract_info.assert_called_once_with(URL, download=True)
+
+
+def test_progress_hook_maps_percent():
+    seen = []
+    hook = _make_progress_hook(lambda pct, msg: seen.append((pct, msg)))
+
+    hook({"status": "downloading", "downloaded_bytes": 5_242_880, "total_bytes": 10_485_760})
+    assert seen[-1][0] == 50
+    assert "MB" in seen[-1][1]
+
+    # total_bytes belum diketahui -> pakai estimate.
+    hook(
+        {
+            "status": "downloading",
+            "downloaded_bytes": 2_097_152,
+            "total_bytes_estimate": 10_485_760,
+        }
+    )
+    assert seen[-1][0] == 20
+
+    hook({"status": "finished"})
+    assert seen[-1][0] == 100
+
+
+def test_download_registers_progress_hook_when_cb_given(fake_ydl, tmp_path, mocker):
+    cls = mocker.patch("pipeline.download.YoutubeDL")
+    cls.return_value.__enter__.return_value = fake_ydl
+
+    download_video(URL, tmp_path, progress_cb=lambda pct, msg: None)
+
+    opts = cls.call_args.args[0]
+    assert "progress_hooks" in opts and len(opts["progress_hooks"]) == 1
+
+
+def test_download_no_hook_without_cb(fake_ydl, tmp_path, mocker):
+    cls = mocker.patch("pipeline.download.YoutubeDL")
+    cls.return_value.__enter__.return_value = fake_ydl
+
+    download_video(URL, tmp_path)
+
+    opts = cls.call_args.args[0]
+    assert "progress_hooks" not in opts
 
 
 def test_download_options_contain_outtmpl_and_format(mocker, tmp_path):

@@ -12,6 +12,28 @@ const STAGE_LABELS = {
   error: "Gagal",
 };
 
+// Tahapan yang ditampilkan sebagai step-tracker, urut sesuai pipeline.
+const STEPS = [
+  { key: "download", label: "Unduh" },
+  { key: "transcribe", label: "Transkrip" },
+  { key: "analyze", label: "Analisis AI" },
+  { key: "render", label: "Render" },
+];
+const STAGE_TO_STEP = {
+  downloading: "download",
+  transcribing: "transcribe",
+  analyzing: "analyze",
+  rendering: "render",
+};
+// Stage yang berjalan tapi progress bisa 0 -> bar indeterminate biar tak terlihat freeze.
+const PROCESSING_STAGES = new Set([
+  "queued",
+  "downloading",
+  "transcribing",
+  "analyzing",
+  "rendering",
+]);
+
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -25,6 +47,8 @@ function setupApp(doc) {
   const submitBtn = doc.getElementById("submit-btn");
   const statusSection = doc.getElementById("status-section");
   const statusText = doc.getElementById("status-text");
+  const stepsEl = doc.getElementById("steps");
+  const elapsedEl = doc.getElementById("elapsed");
   const progressBar = doc.getElementById("progress-bar");
   const progressMessage = doc.getElementById("progress-message");
   const segmentsSection = doc.getElementById("segments-section");
@@ -39,11 +63,73 @@ function setupApp(doc) {
   let jobId = null;
   const selected = new Set();
   let segmentData = [];
+  let activeStepKey = null;
+  let timerId = null;
+  let startMs = 0;
 
   function setStatus(stage, message) {
     statusSection.classList.add("visible");
     statusText.textContent = message || STAGE_LABELS[stage] || stage;
     statusText.classList.toggle("error", stage === "error");
+  }
+
+  function renderSteps() {
+    if (!stepsEl) return;
+    stepsEl.innerHTML = "";
+    for (const s of STEPS) {
+      const li = doc.createElement("li");
+      li.dataset.step = s.key;
+      li.className = "pending";
+      li.innerHTML = `<span class="dot" aria-hidden="true"></span><span>${s.label}</span>`;
+      stepsEl.appendChild(li);
+    }
+  }
+
+  function setStepClass(key, cls) {
+    const li = stepsEl && stepsEl.querySelector(`[data-step="${key}"]`);
+    if (li) li.className = cls;
+  }
+
+  function updateSteps(stage) {
+    if (!stepsEl) return;
+    if (stage === "error") {
+      if (activeStepKey) setStepClass(activeStepKey, "error");
+      return;
+    }
+    if (stage === "ready") {
+      // Analisis selesai; render belum jalan.
+      for (const s of STEPS) setStepClass(s.key, s.key === "render" ? "pending" : "done");
+      activeStepKey = null;
+      return;
+    }
+    if (stage === "done") {
+      for (const s of STEPS) setStepClass(s.key, "done");
+      activeStepKey = null;
+      return;
+    }
+    const activeKey = STAGE_TO_STEP[stage];
+    if (!activeKey) return;
+    activeStepKey = activeKey;
+    const activeIdx = STEPS.findIndex((s) => s.key === activeKey);
+    STEPS.forEach((s, i) => {
+      setStepClass(s.key, i < activeIdx ? "done" : i === activeIdx ? "active" : "pending");
+    });
+  }
+
+  function startTimer() {
+    stopTimer();
+    startMs = Date.now();
+    if (elapsedEl) elapsedEl.textContent = formatTime(0);
+    timerId = win.setInterval(() => {
+      if (elapsedEl) elapsedEl.textContent = formatTime((Date.now() - startMs) / 1000);
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerId) {
+      win.clearInterval(timerId);
+      timerId = null;
+    }
   }
 
   function updateRenderButton() {
@@ -139,9 +225,19 @@ function setupApp(doc) {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.stage === "connected") return;
-      setStatus(data.stage, data.message);
+      // Headline: label tahap yang stabil; kecuali error yang menampilkan pesan backend.
+      const headline = data.stage === "error" ? data.message : STAGE_LABELS[data.stage];
+      setStatus(data.stage, headline);
+      updateSteps(data.stage);
       progressBar.value = data.progress;
-      progressMessage.textContent = STAGE_LABELS[data.stage] || "";
+      // Bar indeterminate saat tahap jalan tapi belum ada persen -> tak terlihat freeze.
+      const indeterminate = data.progress === 0 && PROCESSING_STAGES.has(data.stage);
+      progressBar.classList.toggle("indeterminate", indeterminate);
+      // Detail live (mis. "5.0 MB / 15.0 MB" atau "Transkripsi 55%").
+      progressMessage.textContent = data.message || "";
+      if (data.stage === "ready" || data.stage === "done" || data.stage === "error") {
+        stopTimer();
+      }
       if (data.stage === "ready") loadSegments();
       if (data.stage === "done") loadOutput();
     };
@@ -167,10 +263,14 @@ function setupApp(doc) {
       });
       const data = await resp.json();
       jobId = data.job_id;
+      renderSteps();
+      startTimer();
       setStatus("queued");
       progressBar.value = 0;
+      progressBar.classList.add("indeterminate");
       connectWebSocket();
     } catch (err) {
+      stopTimer();
       setStatus("error", `Tidak bisa terhubung ke backend: ${err.message}`);
     } finally {
       submitBtn.disabled = false;
@@ -179,12 +279,16 @@ function setupApp(doc) {
 
   renderBtn.addEventListener("click", async () => {
     renderBtn.disabled = true;
+    startTimer();
+    updateSteps("rendering");
+    setStatus("rendering", STAGE_LABELS.rendering);
+    progressBar.value = 0;
+    progressBar.classList.add("indeterminate");
     await fetch(`${API_BASE}/jobs/${jobId}/render`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ segment_ids: [...selected] }),
     });
-    setStatus("rendering", "Render dimulai");
   });
 
   openFolderBtn.addEventListener("click", () => {

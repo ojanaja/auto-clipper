@@ -64,7 +64,8 @@ def test_analysis_calls_pipeline_in_order_and_stores_results(manager, broadcaste
     assert job.status == JobStatus.READY
     deps["download_fn"].assert_called_once()
     assert deps["download_fn"].call_args.args[0] == URL
-    deps["transcribe_fn"].assert_called_once_with(FAKE_META.filepath)
+    deps["transcribe_fn"].assert_called_once()
+    assert deps["transcribe_fn"].call_args.args[0] == FAKE_META.filepath
     assert deps["highlight_fn"].call_args.args[0] == FAKE_WORDS
     assert job.words == FAKE_WORDS
     assert job.segments == FAKE_SEGMENTS
@@ -82,6 +83,42 @@ def test_analysis_publishes_progress_events(manager, broadcaster, deps):
     assert "ready" in stages
     # Semua event untuk job_id yang benar.
     assert all(c.args[0] == job.job_id for c in broadcaster.publish.call_args_list)
+
+
+def test_analysis_forwards_live_download_progress(manager, broadcaster, deps):
+    captured = {}
+
+    def capture(url, work_dir, progress_cb=None):
+        captured["cb"] = progress_cb
+        return FAKE_META
+
+    deps["download_fn"].side_effect = capture
+    job = manager.create_job(URL)
+    _orchestrator(manager, broadcaster, deps).run_analysis(job.job_id)
+
+    # Simulasikan yt-dlp memanggil hook di tengah unduhan.
+    captured["cb"](42, "5 MB / 12 MB")
+    events = [c.args[1] for c in broadcaster.publish.call_args_list]
+    assert any(
+        e["stage"] == "downloading" and e["progress"] == 42 and "MB" in e["message"]
+        for e in events
+    )
+
+
+def test_analysis_forwards_live_transcribe_progress(manager, broadcaster, deps):
+    captured = {}
+
+    def capture(path, progress_cb=None):
+        captured["cb"] = progress_cb
+        return FAKE_WORDS
+
+    deps["transcribe_fn"].side_effect = capture
+    job = manager.create_job(URL)
+    _orchestrator(manager, broadcaster, deps).run_analysis(job.job_id)
+
+    captured["cb"](75, "Transkripsi 75%")
+    events = [c.args[1] for c in broadcaster.publish.call_args_list]
+    assert any(e["stage"] == "transcribing" and e["progress"] == 75 for e in events)
 
 
 def test_analysis_download_error_sets_job_error(manager, broadcaster, deps):

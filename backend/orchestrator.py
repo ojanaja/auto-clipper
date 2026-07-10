@@ -59,12 +59,19 @@ class PipelineOrchestrator:
         try:
             self._jobs.transition(job_id, JobStatus.DOWNLOADING)
             self._publish(job_id, "downloading", 0, "Mengunduh video")
-            meta = self._download(job.youtube_url, work_dir)
+            meta = self._download(
+                job.youtube_url,
+                work_dir,
+                progress_cb=lambda pct, msg: self._publish(job_id, "downloading", pct, msg),
+            )
             job.video_path = meta.filepath
 
             self._jobs.transition(job_id, JobStatus.TRANSCRIBING)
             self._publish(job_id, "transcribing", 0, "Transkripsi audio")
-            job.words = self._transcribe(meta.filepath)
+            job.words = self._transcribe(
+                meta.filepath,
+                progress_cb=lambda pct, msg: self._publish(job_id, "transcribing", pct, msg),
+            )
 
             self._jobs.transition(job_id, JobStatus.ANALYZING)
             self._publish(job_id, "analyzing", 0, "Mencari momen menarik")

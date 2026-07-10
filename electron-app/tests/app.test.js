@@ -82,6 +82,68 @@ describe("input link & status job", () => {
   });
 });
 
+describe("visibilitas progress (anti-freeze)", () => {
+  const step = (key) => document.querySelector(`[data-step="${key}"]`);
+
+  async function submit() {
+    mockFetchQueue([{ job_id: "job-1", status: "queued" }, { segments: [] }]);
+    loadApp();
+    await userEvent.type(screen.getByPlaceholderText(/link youtube/i), "https://youtu.be/x");
+    await userEvent.click(screen.getByRole("button", { name: /ambil transkrip/i }));
+    await flush();
+    return FakeWebSocket.instances[0];
+  }
+
+  test("step tracker menandai tahap aktif, selesai, dan menunggu", async () => {
+    const ws = await submit();
+
+    ws.emit({ stage: "downloading", progress: 10, message: "" });
+    expect(step("download")).toHaveClass("active");
+    expect(step("transcribe")).toHaveClass("pending");
+
+    ws.emit({ stage: "transcribing", progress: 0, message: "" });
+    expect(step("download")).toHaveClass("done");
+    expect(step("transcribe")).toHaveClass("active");
+
+    ws.emit({ stage: "ready", progress: 100, message: "" });
+    expect(step("download")).toHaveClass("done");
+    expect(step("transcribe")).toHaveClass("done");
+    expect(step("analyze")).toHaveClass("done");
+    expect(step("render")).toHaveClass("pending");
+  });
+
+  test("tahap aktif menampilkan tanda error saat gagal", async () => {
+    const ws = await submit();
+    ws.emit({ stage: "downloading", progress: 20, message: "" });
+    ws.emit({ stage: "error", progress: 0, message: "Video privat" });
+
+    expect(step("download")).toHaveClass("error");
+  });
+
+  test("progress bar indeterminate saat progress 0, determinate saat ada persen", async () => {
+    const ws = await submit();
+    const bar = document.getElementById("progress-bar");
+
+    ws.emit({ stage: "transcribing", progress: 0, message: "" });
+    expect(bar.classList.contains("indeterminate")).toBe(true);
+
+    ws.emit({ stage: "transcribing", progress: 55, message: "Transkripsi 55%" });
+    expect(bar.classList.contains("indeterminate")).toBe(false);
+    expect(bar.value).toBe(55);
+  });
+
+  test("timer elapsed mulai berjalan saat submit", async () => {
+    await submit();
+    expect(document.getElementById("elapsed")).toHaveTextContent(/0:00/);
+  });
+
+  test("pesan detail progress tampil dari message backend", async () => {
+    const ws = await submit();
+    ws.emit({ stage: "downloading", progress: 33, message: "5.0 MB / 15.0 MB" });
+    expect(document.getElementById("progress-message")).toHaveTextContent(/5\.0 MB/);
+  });
+});
+
 describe("daftar segmen & seleksi", () => {
   async function readyApp() {
     mockFetchQueue([{ job_id: "job-1", status: "queued" }, SEGMENTS]);

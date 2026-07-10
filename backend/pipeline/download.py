@@ -69,8 +69,30 @@ _UNAVAILABLE_PATTERNS = (
 )
 
 
-def download_video(url: str, dest_dir: Path) -> VideoMetadata:
+def _make_progress_hook(progress_cb):
+    """Ubah dict progress yt-dlp jadi panggilan progress_cb(percent, message)."""
+
+    def hook(d):
+        status = d.get("status")
+        if status == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+            done = d.get("downloaded_bytes") or 0
+            pct = int(done / total * 100) if total else 0
+            msg = f"Mengunduh {done / 1_048_576:.1f} MB"
+            if total:
+                msg += f" / {total / 1_048_576:.1f} MB"
+            progress_cb(pct, msg)
+        elif status == "finished":
+            progress_cb(100, "Unduhan selesai, memproses")
+
+    return hook
+
+
+def download_video(url: str, dest_dir: Path, progress_cb=None) -> VideoMetadata:
     """Download video+audio kualitas terbaik ke dest_dir, kembalikan metadata.
+
+    progress_cb(percent, message) dipanggil live selama unduhan berlangsung
+    (dari yt-dlp progress hook) supaya UI tidak terlihat freeze di 0%.
 
     Raises:
         InvalidURLError: URL bukan link YouTube valid.
@@ -85,6 +107,8 @@ def download_video(url: str, dest_dir: Path) -> VideoMetadata:
         "noplaylist": True,
         "quiet": True,
     }
+    if progress_cb is not None:
+        opts["progress_hooks"] = [_make_progress_hook(progress_cb)]
     try:
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)

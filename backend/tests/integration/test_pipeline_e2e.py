@@ -28,7 +28,9 @@ def test_full_pipeline_real_video(tmp_path):
     orch = PipelineOrchestrator(
         manager,
         _NullBroadcaster(),
-        transcribe_fn=lambda p: transcribe_audio(p, model_size="tiny"),
+        transcribe_fn=lambda p, progress_cb=None: transcribe_audio(
+            p, model_size="tiny", progress_cb=progress_cb
+        ),
         work_root=tmp_path / "work",
     )
     job = manager.create_job(SHORT_PUBLIC_VIDEO)

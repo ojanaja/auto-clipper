@@ -252,6 +252,91 @@
         color: var(--color-destructive);
       }
 
+      #status-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        margin-bottom: var(--space-3);
+      }
+
+      #status-header #status-text {
+        margin-bottom: 0;
+      }
+
+      .elapsed {
+        color: var(--color-muted-fg);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .steps {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 var(--space-3);
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2) var(--space-3);
+      }
+
+      .steps li {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: 13px;
+        color: var(--color-muted-fg);
+        transition: color 200ms var(--ease-out);
+      }
+
+      .steps li .dot {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        border-radius: 999px;
+        border: 2px solid var(--color-border);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        line-height: 1;
+        transition:
+          border-color 200ms var(--ease-out),
+          background 200ms var(--ease-out);
+      }
+
+      .steps li.active {
+        color: var(--color-foreground);
+      }
+
+      .steps li.active .dot {
+        border-color: var(--color-accent);
+        border-top-color: transparent;
+        animation: step-spin 700ms linear infinite;
+      }
+
+      .steps li.done {
+        color: var(--color-foreground);
+      }
+
+      .steps li.done .dot {
+        border-color: var(--color-accent);
+        background: var(--color-accent);
+        color: #052e16;
+      }
+
+      .steps li.error .dot {
+        border-color: var(--color-destructive);
+        background: var(--color-destructive);
+        color: #fff;
+      }
+
+      @keyframes step-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
       progress {
         width: 100%;
         height: 8px;
@@ -260,6 +345,24 @@
         border-radius: 999px;
         overflow: hidden;
         background: var(--bg-elevated);
+      }
+
+      progress.indeterminate::-webkit-progress-value {
+        width: 40% !important;
+        animation: progress-slide 1.2s ease-in-out infinite;
+      }
+
+      progress.indeterminate {
+        --slide: 1;
+      }
+
+      @keyframes progress-slide {
+        0% {
+          margin-left: -40%;
+        }
+        100% {
+          margin-left: 100%;
+        }
       }
 
       progress::-webkit-progress-bar {
@@ -507,7 +610,11 @@
     </section>
 
     <section id="status-section" aria-live="polite">
-      <p id="status-text"></p>
+      <div id="status-header">
+        <p id="status-text"></p>
+        <span id="elapsed" class="elapsed" aria-label="Waktu berjalan"></span>
+      </div>
+      <ol id="steps" class="steps" aria-label="Tahapan proses"></ol>
       <progress id="progress-bar" max="100" value="0"></progress>
       <p id="progress-message"></p>
     </section>
