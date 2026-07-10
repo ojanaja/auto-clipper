@@ -15,17 +15,11 @@ ELECTRON_BUILD_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "electron-app",
 # Make sure project modules are importable during analysis.
 sys.path.insert(0, PROJECT_ROOT)
 
-YUNET_MODEL_FILENAME = "face_detection_yunet_2023mar.onnx"
-
 added_datas = []
 added_datas += collect_data_files(
     "faster_whisper", includes=["assets/silero_vad_v6.onnx"]
 )
 added_datas += collect_data_files("certifi")
-
-bundled_model = os.path.join(PROJECT_ROOT, "models", YUNET_MODEL_FILENAME)
-if os.path.exists(bundled_model):
-    added_datas.append((bundled_model, "models"))
 
 added_binaries = []
 added_binaries += collect_dynamic_libs("ctranslate2")

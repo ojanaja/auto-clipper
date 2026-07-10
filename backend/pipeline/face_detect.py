@@ -36,11 +36,12 @@ class Detection:
 
 
 def _bundled_model_dir() -> Path | None:
-    """Direktori model saat di-bundle PyInstaller (sys._MEIPASS)."""
+    """Direktori model saat di-bundle: di samping executable sidecar."""
     if getattr(sys, "frozen", False):
-        base = getattr(sys, "_MEIPASS", None)
-        if base:
-            return Path(base) / "models"
+        # Sidecar executable berada di resources/backend/; model dikirim di
+        # resources/backend/models/ agar terlihat oleh build manifest.
+        exe_dir = Path(sys.executable).parent
+        return exe_dir / "models"
     return None
 
 

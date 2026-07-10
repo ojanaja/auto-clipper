@@ -35,4 +35,24 @@ const result = spawnSync(python, args, {
   env,
 });
 
-process.exit(result.status ?? 0);
+if (result.status !== 0 && result.status != null) {
+  process.exit(result.status);
+}
+
+// Copy YuNet model next to the sidecar so it is shipped as an extra resource
+// (PyInstaller datas are hidden inside the one-file archive and not visible
+// to build manifest verification).
+const modelName = "face_detection_yunet_2023mar.onnx";
+const sourceModel = path.join(backendDir, "models", modelName);
+const modelDir = path.join(electronBuildDir, "models");
+const destModel = path.join(modelDir, modelName);
+
+if (fs.existsSync(sourceModel)) {
+  fs.mkdirSync(modelDir, { recursive: true });
+  fs.copyFileSync(sourceModel, destModel);
+  console.log(`Copied YuNet model to ${destModel}`);
+} else {
+  console.warn(`WARNING: YuNet model not found at ${sourceModel}; run npm run build:model first`);
+}
+
+process.exit(0);
