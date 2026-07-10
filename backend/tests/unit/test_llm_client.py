@@ -109,3 +109,24 @@ def test_factory_gemini_without_key_raises(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     with pytest.raises(RuntimeError):
         make_llm_client()
+
+
+def test_factory_uses_config_overrides(monkeypatch, mocker):
+    mocker.patch("pipeline.llm_client.anthropic.Anthropic")
+    llm = make_llm_client(
+        provider="anthropic",
+        anthropic_api_key="cfg-key",
+        model="claude-sonnet-4",
+    )
+    assert isinstance(llm, AnthropicLLMClient)
+    assert llm._model == "claude-sonnet-4"
+
+
+def test_factory_gemini_config_key_overrides_env(monkeypatch, fake_httpx):
+    monkeypatch.setenv("GEMINI_API_KEY", "env-key")
+    post, _ = fake_httpx
+    llm = make_llm_client(provider="gemini", gemini_api_key="cfg-key", model="gemini-pro")
+    assert isinstance(llm, GeminiLLMClient)
+    assert llm._model == "gemini-pro"
+    llm.complete("x")
+    assert post.call_args.kwargs["headers"]["x-goog-api-key"] == "cfg-key"

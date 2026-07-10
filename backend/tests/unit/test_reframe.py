@@ -15,8 +15,12 @@ def _assert_inside_frame(crop: CropBox):
     assert crop.y + crop.h <= FRAME_H
 
 
+def _assert_ratio(crop: CropBox, ratio: float):
+    assert crop.w / crop.h == pytest.approx(ratio, abs=0.01)
+
+
 def _assert_916(crop: CropBox):
-    assert crop.w / crop.h == pytest.approx(9 / 16, abs=0.01)
+    _assert_ratio(crop, 9 / 16)
 
 
 # --- compute_crop_box ---
@@ -96,6 +100,31 @@ def test_crop_dimensions_are_even():
     crop = compute_crop_box(1919, 1079, [])
     assert crop.w % 2 == 0
     assert crop.h % 2 == 0
+
+
+def test_custom_target_ratio_1_1():
+    crop = compute_crop_box(1920, 1080, [], target_ratio=1 / 1)
+    _assert_ratio(crop, 1.0)
+    _assert_inside_frame(crop)
+    assert crop.w == crop.h == 1080
+    assert abs((crop.x + crop.w / 2) - FRAME_W / 2) < 5
+
+
+def test_custom_target_ratio_16_9():
+    crop = compute_crop_box(1920, 1080, [], target_ratio=16 / 9)
+    _assert_ratio(crop, 16 / 9)
+    _assert_inside_frame(crop)
+    assert crop.w == 1920
+    assert crop.h == 1080
+
+
+def test_custom_target_ratio_clamps_inside_frame():
+    face = BBox(x=0, y=490, w=100, h=100)
+    crop = compute_crop_box(1920, 1080, [face], target_ratio=4 / 5)
+    _assert_ratio(crop, 4 / 5)
+    assert crop.x == 0
+    _assert_inside_frame(crop)
+    assert crop.x <= face.x and face.x + face.w <= crop.x + crop.w
 
 
 # --- smooth_crop_boxes ---

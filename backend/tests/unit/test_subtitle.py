@@ -80,6 +80,17 @@ def test_generate_ass_matches_golden_file():
     assert content == golden
 
 
+def test_generate_ass_uses_custom_font_size():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, font_size=120)
+    assert "Style: Default,Arial,120," in content
+
+
+def test_generate_ass_uses_custom_play_res():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, output_width=720, output_height=1280)
+    assert "PlayResX: 720" in content
+    assert "PlayResY: 1280" in content
+
+
 # --- burn_subtitle ---
 
 

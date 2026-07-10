@@ -63,6 +63,13 @@ def test_prompt_contains_transcript_text_and_timestamps():
     assert "rahasia" in prompt
     assert "0.0" in prompt  # timestamp awal muncul
     assert "JSON" in prompt  # instruksi format output
+    assert "durasi ideal 20-60" in prompt
+
+
+def test_prompt_uses_custom_config():
+    prompt = build_prompt(SAMPLE_WORDS, duration_min=30, duration_max=90, count=5)
+    assert "durasi ideal 30-90" in prompt
+    assert "Temukan 5 momen" in prompt
 
 
 # --- parse_llm_response ---

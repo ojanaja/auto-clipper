@@ -2,6 +2,7 @@ import re
 import tempfile
 from pathlib import Path
 
+from config import load_config, resolve_output_dir
 from job_manager import JobManager, JobStatus
 from pipeline.download import download_video
 from pipeline.highlight import find_highlights
@@ -32,6 +33,7 @@ class PipelineOrchestrator:
         render_fn=render_segment,
         llm_client=None,
         work_root: Path | None = None,
+        config_provider=load_config,
     ):
         self._jobs = job_manager
         self._broadcaster = broadcaster
@@ -40,6 +42,7 @@ class PipelineOrchestrator:
         self._highlight = highlight_fn
         self._render = render_fn
         self._llm_client = llm_client
+        self._config_provider = config_provider
         self._work_root = Path(work_root or tempfile.gettempdir()) / "autoclip"
 
     def _publish(self, job_id: str, stage: str, progress: int, message: str = ""):
@@ -66,20 +69,34 @@ class PipelineOrchestrator:
             )
             job.video_path = meta.filepath
 
+            cfg = self._config_provider()
+
             self._jobs.transition(job_id, JobStatus.TRANSCRIBING)
             self._publish(job_id, "transcribing", 0, "Transkripsi audio")
             job.words = self._transcribe(
                 meta.filepath,
+                model_size=cfg.whisper_model,
                 progress_cb=lambda pct, msg: self._publish(job_id, "transcribing", pct, msg),
             )
 
             self._jobs.transition(job_id, JobStatus.ANALYZING)
             self._publish(job_id, "analyzing", 0, "Mencari momen menarik")
             if self._llm_client is None:
-                # Lazy: resolve dari env di sini supaya key yang hilang jadi
-                # pesan error job yang jelas, bukan crash saat startup app.
-                self._llm_client = make_llm_client()
-            job.segments = self._highlight(job.words, self._llm_client)
+                # Lazy: resolve dari konfigurasi/env di sini supaya key yang
+                # hilang jadi pesan error job yang jelas, bukan crash startup.
+                self._llm_client = make_llm_client(
+                    provider=cfg.llm_provider,
+                    gemini_api_key=cfg.gemini_api_key or None,
+                    anthropic_api_key=cfg.anthropic_api_key or None,
+                    model=cfg.llm_model or None,
+                )
+            job.segments = self._highlight(
+                job.words,
+                self._llm_client,
+                duration_min=cfg.duration_min,
+                duration_max=cfg.duration_max,
+                count=cfg.segment_count,
+            )
 
             self._jobs.transition(job_id, JobStatus.READY)
             self._publish(job_id, "ready", 100, f"{len(job.segments)} segmen kandidat")
@@ -87,7 +104,9 @@ class PipelineOrchestrator:
             self._jobs.transition(job_id, JobStatus.ERROR, error=str(e))
             self._publish(job_id, "error", 0, str(e))
 
-    def run_render(self, job_id: str, segment_ids: list[str], output_dir: Path) -> None:
+    def run_render(
+        self, job_id: str, segment_ids: list[str], output_dir: Path | None = None
+    ) -> None:
         """Render batch segmen terpilih; tiap klip punya state sendiri.
 
         Kegagalan satu klip tidak menghentikan klip lain — job tetap selesai
@@ -101,10 +120,16 @@ class PipelineOrchestrator:
             if not seg_id.isdigit() or int(seg_id) >= len(job.segments):
                 raise ValueError(f"Segment id tidak dikenal: {seg_id}")
 
+        cfg = self._config_provider()
+        if output_dir is None:
+            output_dir = resolve_output_dir(cfg)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         work_dir = self._work_root / job_id
         work_dir.mkdir(parents=True, exist_ok=True)
+
+        output_width, output_height = cfg.output_dimensions()
+        target_ratio = cfg.target_ratio()
 
         self._jobs.transition(job_id, JobStatus.RENDERING)
         total = len(segment_ids)
@@ -131,6 +156,12 @@ class PipelineOrchestrator:
                     output_path,
                     work_dir=work_dir,
                     progress_cb=on_clip_progress,
+                    target_ratio=target_ratio,
+                    output_width=output_width,
+                    output_height=output_height,
+                    subtitle_enabled=cfg.subtitle_enabled,
+                    subtitle_font_size=cfg.subtitle_font_size,
+                    encoder=cfg.encoder,
                 )
                 job.clips[seg_id] = {"status": "done", "progress": 100, "path": str(output_path)}
             except Exception as e:

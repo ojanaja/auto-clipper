@@ -55,18 +55,34 @@ class GeminiLLMClient:
         return candidates[0]["content"]["parts"][0]["text"]
 
 
-def make_llm_client():
-    """Buat LLM client sesuai env: LLM_PROVIDER=gemini (default) | anthropic.
+def make_llm_client(
+    provider: str | None = None,
+    gemini_api_key: str | None = None,
+    anthropic_api_key: str | None = None,
+    model: str | None = None,
+):
+    """Buat LLM client sesuai konfigurasi atau env.
+
+    Args:
+        provider: "gemini" atau "anthropic". Default dari env LLM_PROVIDER atau "gemini".
+        gemini_api_key: API key Gemini; fallback ke env GEMINI_API_KEY.
+        anthropic_api_key: API key Anthropic; fallback ke env ANTHROPIC_API_KEY.
+        model: Model spesifik; fallback ke env GEMINI_MODEL / ANTHROPIC_MODEL.
 
     Raises:
         RuntimeError: API key untuk provider terpilih tidak diset.
     """
-    provider = os.environ.get("LLM_PROVIDER", "gemini")
+    provider = (provider or os.environ.get("LLM_PROVIDER", "gemini")).lower()
+
     if provider == "anthropic":
-        return AnthropicLLMClient()
-    key = os.environ.get("GEMINI_API_KEY")
+        key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
+        default_model = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
+        return AnthropicLLMClient(model=model or default_model, api_key=key or None)
+
+    key = gemini_api_key or os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError(
             "GEMINI_API_KEY belum diset. Ambil key gratis di https://aistudio.google.com/apikey"
         )
-    return GeminiLLMClient(api_key=key)
+    default_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    return GeminiLLMClient(api_key=key, model=model or default_model)

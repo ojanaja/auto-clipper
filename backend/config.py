@@ -148,3 +148,10 @@ def save_config(cfg: AppConfig, path: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg.to_dict(), f, indent=2, ensure_ascii=False)
+
+
+def resolve_output_dir(cfg: AppConfig, fallback: Path | None = None) -> Path:
+    """Resolve direktori output render dari konfigurasi atau fallback."""
+    if cfg.output_dir:
+        return Path(cfg.output_dir)
+    return fallback or Path.home() / "Movies" / "AutoClip"

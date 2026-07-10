@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from config import AppConfig, ConfigError, load_config, save_config
+from config import AppConfig, ConfigError, load_config, resolve_output_dir, save_config
 from job_manager import JobManager, JobNotFoundError
 from orchestrator import PipelineOrchestrator
 from progress import ProgressBroadcaster
@@ -101,7 +101,9 @@ def get_segments(job_id: str):
 @app.post("/jobs/{job_id}/render", status_code=202)
 def start_render(job_id: str, req: RenderRequest):
     _get_job_or_404(job_id)
-    _spawn(orchestrator.run_render, job_id, req.segment_ids, _DEFAULT_OUTPUT_DIR)
+    cfg = load_config()
+    output_dir = resolve_output_dir(cfg, fallback=_DEFAULT_OUTPUT_DIR)
+    _spawn(orchestrator.run_render, job_id, req.segment_ids, output_dir)
     return {"render_job_id": job_id, "status": "queued"}
 
 

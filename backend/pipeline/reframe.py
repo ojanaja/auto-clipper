@@ -1,6 +1,6 @@
 from dataclasses import dataclass, replace
 
-_TARGET_RATIO = 9 / 16
+_DEFAULT_TARGET_RATIO = 9 / 16
 
 
 @dataclass
@@ -26,18 +26,20 @@ def _even(n: float) -> int:
     return int(n) // 2 * 2
 
 
-def compute_crop_box(frame_w: int, frame_h: int, faces: list[BBox]) -> CropBox:
-    """Hitung crop box 9:16 terbesar yang memuat wajah; tanpa wajah -> center crop.
+def compute_crop_box(
+    frame_w: int, frame_h: int, faces: list[BBox], target_ratio: float = _DEFAULT_TARGET_RATIO
+) -> CropBox:
+    """Hitung crop box target ratio terbesar; tanpa wajah -> center crop.
 
     Multi wajah: crop dipusatkan pada titik tengah gabungan semua bounding box.
     Crop selalu di-clamp agar tidak keluar dari frame sumber.
     """
-    if frame_w / frame_h >= _TARGET_RATIO:
+    if frame_w / frame_h >= target_ratio:
         crop_h = _even(frame_h)
-        crop_w = _even(crop_h * _TARGET_RATIO)
+        crop_w = _even(crop_h * target_ratio)
     else:
         crop_w = _even(frame_w)
-        crop_h = _even(crop_w / _TARGET_RATIO)
+        crop_h = _even(crop_w / target_ratio)
 
     if faces:
         left = min(f.x for f in faces)

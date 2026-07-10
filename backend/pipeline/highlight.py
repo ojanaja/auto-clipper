@@ -25,8 +25,9 @@ class Segment:
 
 _PROMPT_TEMPLATE = """\
 Kamu adalah editor video profesional. Berikut transkrip video dengan timestamp \
-(format: [detik] teks). Temukan momen paling menarik untuk dijadikan klip pendek \
-vertikal (durasi ideal 20-60 detik): hook kuat, insight, punchline, atau momen emosional.
+(format: [detik] teks). Temukan {count} momen paling menarik untuk dijadikan klip pendek \
+vertikal (durasi ideal {duration_min}-{duration_max} detik): hook kuat, insight, \
+punchline, atau momen emosional.
 
 TRANSKRIP:
 {transcript}
@@ -39,13 +40,23 @@ Balas HANYA dengan JSON array (tanpa teks lain), tiap elemen:
 _WORDS_PER_LINE = 15
 
 
-def build_prompt(words: list[TranscriptWord]) -> str:
+def build_prompt(
+    words: list[TranscriptWord],
+    duration_min: int = 20,
+    duration_max: int = 60,
+    count: int = 8,
+) -> str:
     lines = []
     for i in range(0, len(words), _WORDS_PER_LINE):
         group = words[i : i + _WORDS_PER_LINE]
         text = " ".join(w.word for w in group)
         lines.append(f"[{group[0].start:.1f}] {text}")
-    return _PROMPT_TEMPLATE.format(transcript="\n".join(lines))
+    return _PROMPT_TEMPLATE.format(
+        transcript="\n".join(lines),
+        duration_min=duration_min,
+        duration_max=duration_max,
+        count=count,
+    )
 
 
 def parse_llm_response(response: str) -> list[Segment]:
@@ -115,6 +126,9 @@ def find_highlights(
     words: list[TranscriptWord],
     client: LLMClient,
     max_chunk_chars: int = 30_000,
+    duration_min: int = 20,
+    duration_max: int = 60,
+    count: int = 8,
 ) -> list[Segment]:
     """Cari golden moment via LLM. Transkrip panjang di-chunk, hasil digabung terurut.
 
@@ -126,7 +140,10 @@ def find_highlights(
     """
     segments: list[Segment] = []
     for chunk in chunk_transcript(words, max_chars=max_chunk_chars):
-        response = _complete_with_retry(client, build_prompt(chunk))
+        response = _complete_with_retry(
+            client,
+            build_prompt(chunk, duration_min=duration_min, duration_max=duration_max, count=count),
+        )
         segments.extend(parse_llm_response(response))
     return sorted(segments, key=lambda s: s.start)
 

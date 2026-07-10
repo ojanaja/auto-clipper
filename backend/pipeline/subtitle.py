@@ -10,23 +10,25 @@ class SubtitleBurnError(Exception):
 
 _WORDS_PER_LINE = 4
 
-_ASS_HEADER = """\
-[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-WrapStyle: 0
 
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, \
-BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, \
-BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,\
--1,0,0,0,100,100,0,0,1,4,2,2,60,60,400,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
+def _ass_header(font_size: int = 80, output_width: int = 1080, output_height: int = 1920) -> str:
+    return (
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        f"PlayResX: {output_width}\n"
+        f"PlayResY: {output_height}\n"
+        "WrapStyle: 0\n"
+        "\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: Default,Arial,{font_size},&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,"
+        "-1,0,0,0,100,100,0,0,1,4,2,2,60,60,400,1\n"
+        "\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
 
 
 def _format_ass_time(seconds: float) -> str:
@@ -38,13 +40,19 @@ def _format_ass_time(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{c:02d}"
 
 
-def generate_ass(words: list[TranscriptWord], segment_start: float) -> str:
+def generate_ass(
+    words: list[TranscriptWord],
+    segment_start: float,
+    font_size: int = 80,
+    output_width: int = 1080,
+    output_height: int = 1920,
+) -> str:
     """Generate isi file .ass dengan highlight karaoke kata-per-kata.
 
     Timestamp kata bersifat absolut terhadap video sumber; segment_start dipakai
     untuk menggeser semua waktu jadi relatif terhadap awal klip yang sudah dipotong.
     """
-    lines = [_ASS_HEADER]
+    lines = [_ass_header(font_size, output_width, output_height)]
     for i in range(0, len(words), _WORDS_PER_LINE):
         group = words[i : i + _WORDS_PER_LINE]
         line_start = group[0].start - segment_start

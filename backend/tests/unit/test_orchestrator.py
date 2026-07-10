@@ -33,7 +33,7 @@ def deps(tmp_path):
         "transcribe_fn": MagicMock(return_value=FAKE_WORDS),
         "highlight_fn": MagicMock(return_value=FAKE_SEGMENTS),
         "render_fn": MagicMock(
-            side_effect=lambda src, seg, words, out, work_dir, progress_cb=None: out
+            side_effect=lambda src, seg, words, out, work_dir, progress_cb=None, **kwargs: out
         ),
         "llm_client": MagicMock(),
         "work_root": tmp_path,
@@ -90,7 +90,7 @@ def test_analysis_publishes_progress_events(manager, broadcaster, deps):
 def test_analysis_forwards_live_download_progress(manager, broadcaster, deps):
     captured = {}
 
-    def capture(url, work_dir, progress_cb=None):
+    def capture(url, work_dir, progress_cb=None, **kwargs):
         captured["cb"] = progress_cb
         return FAKE_META
 
@@ -110,7 +110,7 @@ def test_analysis_forwards_live_download_progress(manager, broadcaster, deps):
 def test_analysis_forwards_live_transcribe_progress(manager, broadcaster, deps):
     captured = {}
 
-    def capture(path, progress_cb=None):
+    def capture(path, progress_cb=None, **kwargs):
         captured["cb"] = progress_cb
         return FAKE_WORDS
 
@@ -156,7 +156,7 @@ def _ready_job(manager, deps, broadcaster):
 def test_render_forwards_per_second_progress(manager, broadcaster, deps, tmp_path):
     captured = {}
 
-    def cap(src, seg, words, out, work_dir, progress_cb=None):
+    def cap(src, seg, words, out, work_dir, progress_cb=None, **kwargs):
         captured["cb"] = progress_cb
         return out
 
@@ -178,7 +178,7 @@ def test_render_maps_clip_progress_to_batch(manager, broadcaster, deps, tmp_path
     # 2 klip: 50% di klip kedua -> overall (1*100 + 50) / 2 = 75.
     cbs = []
 
-    def cap(src, seg, words, out, work_dir, progress_cb=None):
+    def cap(src, seg, words, out, work_dir, progress_cb=None, **kwargs):
         cbs.append(progress_cb)
         return out
 
@@ -224,7 +224,7 @@ def test_render_subset_only(manager, broadcaster, deps, tmp_path):
 def test_render_one_clip_fails_others_continue(manager, broadcaster, deps, tmp_path):
     job = _ready_job(manager, deps, broadcaster)
 
-    def flaky(src, seg, words, out, work_dir, progress_cb=None):
+    def flaky(src, seg, words, out, work_dir, progress_cb=None, **kwargs):
         if seg.title == "A":
             raise RuntimeError("encoder crash")
         return out
@@ -258,3 +258,48 @@ def test_render_output_filenames_safe(manager, broadcaster, deps, tmp_path):
     )
     out = Path(deps["render_fn"].call_args.args[3])
     assert "/" not in out.name and ":" not in out.name and "<" not in out.name
+
+
+def test_analysis_uses_config_for_transcribe_and_highlight(manager, broadcaster, deps):
+    from config import AppConfig
+
+    cfg = AppConfig(
+        whisper_model="tiny",
+        duration_min=30,
+        duration_max=90,
+        segment_count=5,
+    )
+    deps["config_provider"] = lambda: cfg
+    job = manager.create_job(URL)
+    _orchestrator(manager, broadcaster, deps).run_analysis(job.job_id)
+
+    assert deps["transcribe_fn"].call_args.kwargs["model_size"] == "tiny"
+    _, highlight_kwargs = deps["highlight_fn"].call_args
+    assert highlight_kwargs["duration_min"] == 30
+    assert highlight_kwargs["duration_max"] == 90
+    assert highlight_kwargs["count"] == 5
+
+
+def test_render_uses_config_for_output_settings(manager, broadcaster, deps, tmp_path):
+    from config import AppConfig
+
+    cfg = AppConfig(
+        aspect_ratio="1:1",
+        resolution=1080,
+        subtitle_enabled=False,
+        subtitle_font_size=64,
+        encoder="libx264",
+    )
+    deps["config_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    kwargs = deps["render_fn"].call_args.kwargs
+    assert kwargs["target_ratio"] == pytest.approx(1.0)
+    assert kwargs["output_width"] == 1080
+    assert kwargs["output_height"] == 1080
+    assert kwargs["subtitle_enabled"] is False
+    assert kwargs["subtitle_font_size"] == 64
+    assert kwargs["encoder"] == "libx264"

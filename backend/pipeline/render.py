@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 
@@ -51,6 +52,12 @@ def _progress_percent(line: str, duration: float) -> int | None:
     return min(100, int(int(value) / 1_000_000 / duration * 100))
 
 
+def _resolve_encoder(encoder: str) -> str:
+    if encoder == "auto":
+        return "h264_videotoolbox" if sys.platform == "darwin" else "libx264"
+    return encoder
+
+
 def render_segment(
     source_path: str | Path,
     segment: Segment,
@@ -58,8 +65,14 @@ def render_segment(
     output_path: Path,
     work_dir: Path,
     progress_cb=None,
+    target_ratio: float = 9 / 16,
+    output_width: int = 1080,
+    output_height: int = 1920,
+    subtitle_enabled: bool = True,
+    subtitle_font_size: int = 80,
+    encoder: str = "auto",
 ) -> Path:
-    """Render satu segmen: cut + crop 9:16 + scale + burn subtitle dalam satu pass ffmpeg.
+    """Render satu segmen: cut + crop target ratio + scale + burn subtitle dalam satu pass ffmpeg.
 
     progress_cb(percent, message) dipanggil per-detik dari output `ffmpeg -progress`
     supaya bar render bergerak halus (bukan cuma per-klip).
@@ -71,17 +84,30 @@ def render_segment(
         RenderError: ffprobe/ffmpeg gagal.
     """
     frame_w, frame_h = probe_dimensions(source_path)
-    crop = compute_crop_box(frame_w, frame_h, faces=[])
+    crop = compute_crop_box(frame_w, frame_h, faces=[], target_ratio=target_ratio)
 
-    segment_words = [w for w in words if segment.start <= w.start and w.end <= segment.end]
-    ass_path = Path(work_dir) / f"sub_{uuid.uuid4().hex[:8]}.ass"
-    ass_path.write_text(generate_ass(segment_words, segment_start=segment.start))
+    vf_parts = [
+        f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y}",
+        f"scale={output_width}:{output_height}",
+    ]
 
-    vf = (
-        f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
-        f"scale=1080:1920,"
-        f"ass=filename={ass_path}"
-    )
+    if subtitle_enabled:
+        segment_words = [w for w in words if segment.start <= w.start and w.end <= segment.end]
+        ass_path = Path(work_dir) / f"sub_{uuid.uuid4().hex[:8]}.ass"
+        ass_path.write_text(
+            generate_ass(
+                segment_words,
+                segment_start=segment.start,
+                font_size=subtitle_font_size,
+                output_width=output_width,
+                output_height=output_height,
+            )
+        )
+        vf_parts.append(f"ass=filename={ass_path}")
+
+    vf = ",".join(vf_parts)
+    video_codec = _resolve_encoder(encoder)
+
     cmd = ["ffmpeg", "-y"]
     if progress_cb is not None:
         # Streaming progress ke stdout; matikan stats agar tak mengotori parse.
@@ -95,8 +121,12 @@ def render_segment(
         str(source_path),
         "-vf",
         vf,
+        "-c:v",
+        video_codec,
         "-c:a",
         "aac",
+        "-pix_fmt",
+        "yuv420p",
         str(output_path),
     ]
 

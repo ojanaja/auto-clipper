@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from config import AppConfig, ConfigError, default_config_path, load_config, save_config
+from config import (
+    AppConfig,
+    ConfigError,
+    default_config_path,
+    load_config,
+    resolve_output_dir,
+    save_config,
+)
 
 
 def test_default_config_matches_table():
@@ -171,3 +178,19 @@ def test_save_config_is_valid_json(tmp_path):
     save_config(AppConfig(), path)
     data = json.loads(path.read_text())
     assert data["aspect_ratio"] == "9:16"
+
+
+def test_resolve_output_dir_uses_config_value():
+    cfg = AppConfig(output_dir="/tmp/custom_out")
+    assert resolve_output_dir(cfg) == Path("/tmp/custom_out")
+
+
+def test_resolve_output_dir_uses_fallback_when_empty():
+    cfg = AppConfig(output_dir="")
+    fallback = Path("/tmp/fallback")
+    assert resolve_output_dir(cfg, fallback=fallback) == fallback
+
+
+def test_resolve_output_dir_default_fallback():
+    cfg = AppConfig(output_dir="")
+    assert resolve_output_dir(cfg) == Path.home() / "Movies" / "AutoClip"

@@ -170,3 +170,47 @@ def test_render_segment_progress_ffmpeg_failure_raises(mocker, tmp_path):
             work_dir=tmp_path,
             progress_cb=lambda pct, msg: None,
         )
+
+
+def test_render_segment_1_1_ratio(mocker, tmp_path):
+    calls = _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        target_ratio=1 / 1,
+        output_width=1080,
+        output_height=1080,
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    vf = ffmpeg_cmd[ffmpeg_cmd.index("-vf") + 1]
+    assert "scale=1080:1080" in vf
+    assert "crop=1080:1080:420:0" in vf
+
+
+def test_render_segment_no_subtitle(mocker, tmp_path):
+    calls = _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        subtitle_enabled=False,
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    vf = ffmpeg_cmd[ffmpeg_cmd.index("-vf") + 1]
+    assert "ass=" not in vf
+    assert len(list(tmp_path.glob("*.ass"))) == 0
+
+
+def test_render_segment_uses_custom_encoder(mocker, tmp_path):
+    calls = _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4", SEGMENT, WORDS, tmp_path / "c.mp4", work_dir=tmp_path, encoder="libx264"
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    assert "-c:v" in ffmpeg_cmd
+    assert ffmpeg_cmd[ffmpeg_cmd.index("-c:v") + 1] == "libx264"
