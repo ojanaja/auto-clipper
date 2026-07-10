@@ -3,7 +3,12 @@ from types import SimpleNamespace
 import pytest
 
 from pipeline.highlight import Segment
-from pipeline.render import RenderError, probe_dimensions, render_segment
+from pipeline.render import (
+    RenderError,
+    _progress_percent,
+    probe_dimensions,
+    render_segment,
+)
 from pipeline.transcribe import TranscriptWord
 
 SEGMENT = Segment(start=10.0, end=25.0, score=90, title="Klip", reason="bagus")
@@ -89,3 +94,79 @@ def test_render_segment_ffmpeg_failure_raises(mocker, tmp_path):
     mocker.patch("pipeline.render.subprocess.run", side_effect=fake_run)
     with pytest.raises(RenderError):
         render_segment("source.mp4", SEGMENT, WORDS, tmp_path / "c.mp4", work_dir=tmp_path)
+
+
+# --- progress per-detik ---
+
+
+@pytest.mark.parametrize(
+    "line,duration,expected",
+    [
+        ("out_time_us=0", 15.0, 0),
+        ("out_time_us=7500000", 15.0, 50),  # 7.5s / 15s
+        ("out_time_us=15000000", 15.0, 100),
+        ("out_time_us=30000000", 15.0, 100),  # clamp
+        ("out_time_us=N/A", 15.0, None),
+        ("frame=12", 15.0, None),  # baris lain diabaikan
+        ("out_time_us=7500000", 0.0, None),  # durasi tak diketahui
+    ],
+)
+def test_progress_percent(line, duration, expected):
+    assert _progress_percent(line, duration) == expected
+
+
+def _fake_popen(mocker, lines, returncode=0):
+    """Mock ffprobe via run + ffmpeg via Popen dengan stdout baris progress."""
+    mocker.patch(
+        "pipeline.render.subprocess.run",
+        return_value=SimpleNamespace(returncode=0, stdout="1920,1080", stderr=""),
+    )
+    proc = mocker.MagicMock()
+    proc.stdout = iter(lines)
+    proc.stderr.read.return_value = "" if returncode == 0 else "encoder error"
+    proc.wait.return_value = returncode
+    proc.returncode = returncode
+    return mocker.patch("pipeline.render.subprocess.Popen", return_value=proc)
+
+
+def test_render_segment_reports_progress_per_second(mocker, tmp_path):
+    popen = _fake_popen(
+        mocker,
+        [
+            "out_time_us=0\n",
+            "progress=continue\n",
+            "out_time_us=7500000\n",  # 50% dari 15s
+            "progress=continue\n",
+            "out_time_us=15000000\n",
+            "progress=end\n",
+        ],
+    )
+    seen = []
+
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        progress_cb=lambda pct, msg: seen.append(pct),
+    )
+
+    assert 50 in seen
+    assert seen[-1] == 100
+    # ffmpeg pakai -progress pipe:1 supaya progress streaming ke stdout.
+    cmd = popen.call_args.args[0]
+    assert "-progress" in cmd and "pipe:1" in cmd
+
+
+def test_render_segment_progress_ffmpeg_failure_raises(mocker, tmp_path):
+    _fake_popen(mocker, ["out_time_us=0\n", "progress=end\n"], returncode=1)
+    with pytest.raises(RenderError):
+        render_segment(
+            "source.mp4",
+            SEGMENT,
+            WORDS,
+            tmp_path / "c.mp4",
+            work_dir=tmp_path,
+            progress_cb=lambda pct, msg: None,
+        )

@@ -113,9 +113,25 @@ class PipelineOrchestrator:
             filename = f"{job_id[:8]}_{seg_id}_{_safe_filename(segment.title)}.mp4"
             output_path = output_dir / filename
             job.clips[seg_id] = {"status": "rendering", "progress": 0, "path": None}
-            self._publish(job_id, "rendering", i * 100 // total, f"Render klip {seg_id}")
+
+            def on_clip_progress(clip_pct, _msg, i=i, seg_id=seg_id):
+                # Petakan progress klip ke progress keseluruhan batch.
+                overall = (i * 100 + clip_pct) // total
+                job.clips[seg_id]["progress"] = clip_pct
+                self._publish(
+                    job_id, "rendering", overall, f"Klip {i + 1}/{total} • {clip_pct}%"
+                )
+
+            on_clip_progress(0, "")
             try:
-                self._render(job.video_path, segment, job.words, output_path, work_dir=work_dir)
+                self._render(
+                    job.video_path,
+                    segment,
+                    job.words,
+                    output_path,
+                    work_dir=work_dir,
+                    progress_cb=on_clip_progress,
+                )
                 job.clips[seg_id] = {"status": "done", "progress": 100, "path": str(output_path)}
             except Exception as e:
                 job.clips[seg_id] = {"status": "error", "progress": 0, "path": None}

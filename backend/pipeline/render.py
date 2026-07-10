@@ -37,14 +37,32 @@ def probe_dimensions(video_path: str | Path) -> tuple[int, int]:
     return int(w), int(h)
 
 
+def _progress_percent(line: str, duration: float) -> int | None:
+    """Parse satu baris output `ffmpeg -progress` jadi persen 0-100.
+
+    Hanya baris out_time_us yang relevan; sisanya kembalikan None.
+    """
+    line = line.strip()
+    if not line.startswith("out_time_us=") or duration <= 0:
+        return None
+    value = line.split("=", 1)[1]
+    if not value.isdigit():  # "N/A" di awal encode
+        return None
+    return min(100, int(int(value) / 1_000_000 / duration * 100))
+
+
 def render_segment(
     source_path: str | Path,
     segment: Segment,
     words: list[TranscriptWord],
     output_path: Path,
     work_dir: Path,
+    progress_cb=None,
 ) -> Path:
     """Render satu segmen: cut + crop 9:16 + scale + burn subtitle dalam satu pass ffmpeg.
+
+    progress_cb(percent, message) dipanggil per-detik dari output `ffmpeg -progress`
+    supaya bar render bergerak halus (bukan cuma per-klip).
 
     ponytail: crop pakai center-crop (compute_crop_box tanpa wajah); upgrade path:
     deteksi wajah per sample frame (opencv/mediapipe) lalu median bbox -> crop box.
@@ -64,9 +82,11 @@ def render_segment(
         f"scale=1080:1920,"
         f"ass=filename={ass_path}"
     )
-    cmd = [
-        "ffmpeg",
-        "-y",
+    cmd = ["ffmpeg", "-y"]
+    if progress_cb is not None:
+        # Streaming progress ke stdout; matikan stats agar tak mengotori parse.
+        cmd += ["-progress", "pipe:1", "-nostats"]
+    cmd += [
         "-ss",
         str(segment.start),
         "-to",
@@ -79,8 +99,26 @@ def render_segment(
         "aac",
         str(output_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        full_cmd = " ".join(str(c) for c in cmd)
-        raise RenderError(f"ffmpeg gagal render segmen.\nCMD: {full_cmd}\nSTDERR:\n{result.stderr}")
+
+    if progress_cb is None:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            full_cmd = " ".join(str(c) for c in cmd)
+            raise RenderError(
+                f"ffmpeg gagal render segmen.\nCMD: {full_cmd}\nSTDERR:\n{result.stderr}"
+            )
+        return output_path
+
+    duration = segment.end - segment.start
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    for line in proc.stdout:
+        if line.strip() == "progress=end":
+            progress_cb(100, "Render 100%")
+            continue
+        pct = _progress_percent(line, duration)
+        if pct is not None:
+            progress_cb(pct, f"Render {pct}%")
+    returncode = proc.wait()
+    if returncode != 0:
+        raise RenderError(f"ffmpeg gagal render segmen.\nSTDERR:\n{proc.stderr.read()}")
     return output_path

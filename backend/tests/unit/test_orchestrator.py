@@ -32,7 +32,9 @@ def deps(tmp_path):
         "download_fn": MagicMock(return_value=FAKE_META),
         "transcribe_fn": MagicMock(return_value=FAKE_WORDS),
         "highlight_fn": MagicMock(return_value=FAKE_SEGMENTS),
-        "render_fn": MagicMock(side_effect=lambda src, seg, words, out, work_dir: out),
+        "render_fn": MagicMock(
+            side_effect=lambda src, seg, words, out, work_dir, progress_cb=None: out
+        ),
         "llm_client": MagicMock(),
         "work_root": tmp_path,
     }
@@ -151,6 +153,46 @@ def _ready_job(manager, deps, broadcaster):
     return job
 
 
+def test_render_forwards_per_second_progress(manager, broadcaster, deps, tmp_path):
+    captured = {}
+
+    def cap(src, seg, words, out, work_dir, progress_cb=None):
+        captured["cb"] = progress_cb
+        return out
+
+    deps["render_fn"].side_effect = cap
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    # Simulasikan ffmpeg lapor 50% di tengah render satu-satunya klip.
+    captured["cb"](50, "Render 50%")
+    events = [c.args[1] for c in broadcaster.publish.call_args_list]
+    assert any(e["stage"] == "rendering" and e["progress"] == 50 for e in events)
+    # Progress per klip juga tersimpan di state clip.
+    assert job.clips["0"]["progress"] == 50
+
+
+def test_render_maps_clip_progress_to_batch(manager, broadcaster, deps, tmp_path):
+    # 2 klip: 50% di klip kedua -> overall (1*100 + 50) / 2 = 75.
+    cbs = []
+
+    def cap(src, seg, words, out, work_dir, progress_cb=None):
+        cbs.append(progress_cb)
+        return out
+
+    deps["render_fn"].side_effect = cap
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0", "1"], output_dir=tmp_path
+    )
+
+    cbs[1](50, "Render 50%")
+    events = [c.args[1] for c in broadcaster.publish.call_args_list]
+    assert any(e["stage"] == "rendering" and e["progress"] == 75 for e in events)
+
+
 def test_render_selected_segments_batch(manager, broadcaster, deps, tmp_path):
     job = _ready_job(manager, deps, broadcaster)
     orch = _orchestrator(manager, broadcaster, deps)
@@ -182,7 +224,7 @@ def test_render_subset_only(manager, broadcaster, deps, tmp_path):
 def test_render_one_clip_fails_others_continue(manager, broadcaster, deps, tmp_path):
     job = _ready_job(manager, deps, broadcaster)
 
-    def flaky(src, seg, words, out, work_dir):
+    def flaky(src, seg, words, out, work_dir, progress_cb=None):
         if seg.title == "A":
             raise RuntimeError("encoder crash")
         return out
