@@ -1,4 +1,5 @@
 import re
+import sys
 import tempfile
 from pathlib import Path
 
@@ -158,6 +159,7 @@ class PipelineOrchestrator:
             self._jobs.transition(job_id, JobStatus.RENDERING)
             total = len(segment_ids)
             successes = 0
+            failure_msgs: list[str] = []
             for i, seg_id in enumerate(segment_ids):
                 segment = job.segments[int(seg_id)]
                 filename = f"{job_id[:8]}_{seg_id}_{_safe_filename(segment.title)}.mp4"
@@ -226,17 +228,20 @@ class PipelineOrchestrator:
                     }
                     successes += 1
                 except Exception as e:
+                    msg = f"Klip {seg_id} gagal: {e}"
+                    failure_msgs.append(msg)
                     job.clips[seg_id] = {"status": "error", "progress": 0, "path": None}
-                    self._publish(
-                        job_id, "rendering", i * 100 // total, f"Klip {seg_id} gagal: {e}"
-                    )
+                    print(msg, file=sys.stderr, flush=True)
+                    self._publish(job_id, "rendering", i * 100 // total, msg)
 
             if successes:
                 self._jobs.transition(job_id, JobStatus.DONE)
                 self._publish(job_id, "done", 100, "Render selesai")
             else:
-                self._jobs.transition(job_id, JobStatus.ERROR, error="Semua klip gagal dirender")
-                self._publish(job_id, "error", 0, "Semua klip gagal dirender")
+                snippet = failure_msgs[0] if failure_msgs else "tidak diketahui"
+                detail = f"Semua klip gagal dirender. Contoh: {snippet[:300]}"
+                self._jobs.transition(job_id, JobStatus.ERROR, error=detail)
+                self._publish(job_id, "error", 0, detail)
         except Exception as e:
             self._jobs.transition(job_id, JobStatus.ERROR, error=str(e))
             self._publish(job_id, "error", 0, str(e))

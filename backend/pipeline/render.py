@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 
@@ -140,9 +141,9 @@ def render_segment(
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             full_cmd = " ".join(str(c) for c in cmd)
-            raise RenderError(
-                f"ffmpeg gagal render segmen.\nCMD: {full_cmd}\nSTDERR:\n{result.stderr}"
-            )
+            err = f"ffmpeg gagal render segmen.\nCMD: {full_cmd}\nSTDERR:\n{result.stderr}"
+            print(err, file=sys.stderr, flush=True)
+            raise RenderError(err)
         return output_path
 
     duration = segment.end - segment.start
@@ -156,5 +157,8 @@ def render_segment(
             progress_cb(pct, f"Render {pct}%")
     returncode = proc.wait()
     if returncode != 0:
-        raise RenderError(f"ffmpeg gagal render segmen.\nSTDERR:\n{proc.stderr.read()}")
+        stderr = proc.stderr.read()
+        err = f"ffmpeg gagal render segmen.\nSTDERR:\n{stderr}"
+        print(err, file=sys.stderr, flush=True)
+        raise RenderError(err)
     return output_path
