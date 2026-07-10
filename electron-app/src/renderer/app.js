@@ -296,6 +296,8 @@ function setupApp(doc) {
       window.autoclip.openOutputFolder();
     }
   });
+
+  setupSettings(doc);
 }
 
 if (typeof module !== "undefined") {
@@ -308,5 +310,145 @@ if (typeof window !== "undefined" && window.document && !window.__AUTOCLIP_TEST_
     document.addEventListener("DOMContentLoaded", () => setupApp(document));
   } else if (document.getElementById("job-form")) {
     setupApp(document);
+  }
+}
+
+function setupSettings(doc) {
+  const section = doc.getElementById("settings-section");
+  const form = doc.getElementById("settings-form");
+  const openBtn = doc.getElementById("settings-btn");
+  const closeBtn = doc.getElementById("settings-close");
+  const backdrop = doc.getElementById("settings-backdrop");
+  const statusEl = doc.getElementById("settings-status");
+  const browseBtn = doc.getElementById("cfg-browse-dir");
+
+  if (!section || !form) return;
+
+  function setStatus(text, type = "") {
+    statusEl.textContent = text;
+    statusEl.className = type ? type : "";
+  }
+
+  function open() {
+    section.hidden = false;
+    section.classList.add("visible");
+    loadSettings();
+  }
+
+  function close() {
+    section.classList.remove("visible");
+    section.hidden = true;
+    setStatus("");
+  }
+
+  openBtn.addEventListener("click", open);
+  closeBtn.addEventListener("click", close);
+  backdrop.addEventListener("click", close);
+  doc.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && section.classList.contains("visible")) close();
+  });
+
+  async function loadSettings() {
+    setStatus("Memuat...", "");
+    try {
+      const resp = await fetch(`${API_BASE}/config`);
+      if (!resp.ok) throw new Error("config error");
+      const cfg = await resp.json();
+      populate(cfg);
+      setStatus("");
+    } catch {
+      setStatus("Gagal memuat pengaturan", "error");
+    }
+  }
+
+  function populate(cfg) {
+    const get = (name) => form.elements[name];
+    const setValue = (name, value) => {
+      const el = get(name);
+      if (el) el.value = value ?? "";
+    };
+    const setChecked = (name, value) => {
+      const el = get(name);
+      if (el) el.checked = Boolean(value);
+    };
+
+    setValue("aspect_ratio", cfg.aspect_ratio);
+    setValue("resolution", cfg.resolution);
+    setValue("encoder", cfg.encoder);
+    setValue("output_dir", cfg.output_dir);
+    setChecked("subtitle_enabled", cfg.subtitle_enabled);
+    setValue("subtitle_font_size", cfg.subtitle_font_size);
+    setValue("whisper_model", cfg.whisper_model);
+    setValue("segment_count", cfg.segment_count);
+    setValue("duration_min", cfg.duration_min);
+    setValue("duration_max", cfg.duration_max);
+    setValue("llm_provider", cfg.llm_provider);
+    setValue("llm_model", cfg.llm_model);
+
+    const geminiSet = doc.getElementById("gemini-key-set");
+    if (geminiSet) geminiSet.hidden = !cfg.gemini_key_set;
+    const anthropicSet = doc.getElementById("anthropic-key-set");
+    if (anthropicSet) anthropicSet.hidden = !cfg.anthropic_key_set;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setStatus("Menyimpan...", "");
+
+    const data = {
+      aspect_ratio: form.elements.aspect_ratio.value,
+      resolution: parseInt(form.elements.resolution.value, 10),
+      duration_min: parseInt(form.elements.duration_min.value, 10),
+      duration_max: parseInt(form.elements.duration_max.value, 10),
+      subtitle_enabled: form.elements.subtitle_enabled.checked,
+      subtitle_font_size: parseInt(form.elements.subtitle_font_size.value, 10),
+      whisper_model: form.elements.whisper_model.value,
+      segment_count: parseInt(form.elements.segment_count.value, 10),
+      llm_provider: form.elements.llm_provider.value,
+      llm_model: form.elements.llm_model.value.trim(),
+      encoder: form.elements.encoder.value,
+      output_dir: form.elements.output_dir.value.trim(),
+    };
+
+    const geminiKey = form.elements.gemini_api_key.value.trim();
+    if (geminiKey) data.gemini_api_key = geminiKey;
+    const anthropicKey = form.elements.anthropic_api_key.value.trim();
+    if (anthropicKey) data.anthropic_api_key = anthropicKey;
+
+    // Hapus field kosong agar backend tidak menimpa nilai lama (terutama output_dir/model).
+    if (!data.llm_model) delete data.llm_model;
+    if (!data.output_dir) delete data.output_dir;
+
+    try {
+      const resp = await fetch(`${API_BASE}/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.detail || "Save failed");
+      populate(result);
+      // Kosongkan input key supaya tidak tertinggal di DOM.
+      form.elements.gemini_api_key.value = "";
+      form.elements.anthropic_api_key.value = "";
+      setStatus("Pengaturan tersimpan", "success");
+    } catch (err) {
+      setStatus(err.message || "Gagal menyimpan", "error");
+    }
+  });
+
+  if (browseBtn) {
+    browseBtn.addEventListener("click", async () => {
+      if (typeof window !== "undefined" && window.autoclip && window.autoclip.selectOutputDir) {
+        try {
+          const dir = await window.autoclip.selectOutputDir();
+          if (dir) form.elements.output_dir.value = dir;
+        } catch {
+          setStatus("Gagal memilih folder", "error");
+        }
+      } else {
+        setStatus("Picker folder tidak tersedia", "error");
+      }
+    });
   }
 }

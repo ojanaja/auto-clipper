@@ -215,6 +215,86 @@ describe("daftar segmen & seleksi", () => {
   });
 });
 
+describe("pengaturan", () => {
+  const DEFAULT_CONFIG = {
+    aspect_ratio: "1:1",
+    resolution: 720,
+    duration_min: 30,
+    duration_max: 90,
+    subtitle_enabled: true,
+    subtitle_font_size: 64,
+    whisper_model: "tiny",
+    segment_count: 5,
+    llm_provider: "anthropic",
+    llm_model: "claude-test",
+    gemini_key_set: true,
+    anthropic_key_set: false,
+    encoder: "libx264",
+    output_dir: "/tmp/out",
+  };
+
+  async function openSettings() {
+    await userEvent.click(screen.getByRole("button", { name: /pengaturan/i }));
+    await flush();
+  }
+
+  test("membuka panel pengaturan dan memuat konfigurasi", async () => {
+    mockFetchQueue([DEFAULT_CONFIG]);
+    loadApp();
+    await openSettings();
+
+    const section = document.getElementById("settings-section");
+    expect(section).not.toHaveAttribute("hidden");
+    expect(section).toHaveClass("visible");
+
+    const fetchMock = global.fetch;
+    const configCall = fetchMock.mock.calls.find(([u]) => u.includes("/config"));
+    expect(configCall).toBeDefined();
+
+    expect(document.getElementById("cfg-aspect-ratio").value).toBe("1:1");
+    expect(document.getElementById("cfg-resolution").value).toBe("720");
+    expect(document.getElementById("cfg-subtitle-enabled").checked).toBe(true);
+    expect(document.getElementById("cfg-output-dir").value).toBe("/tmp/out");
+    expect(document.getElementById("gemini-key-set")).not.toHaveAttribute("hidden");
+    expect(document.getElementById("anthropic-key-set")).toHaveAttribute("hidden");
+  });
+
+  test("menyimpan perubahan via PUT /config", async () => {
+    mockFetchQueue([DEFAULT_CONFIG, DEFAULT_CONFIG]);
+    loadApp();
+    await openSettings();
+
+    await userEvent.clear(screen.getByLabelText(/durasi min/i));
+    await userEvent.type(screen.getByLabelText(/durasi min/i), "25");
+    await userEvent.click(screen.getByRole("button", { name: /simpan/i }));
+    await flush();
+
+    const fetchMock = global.fetch;
+    const putCall = fetchMock.mock.calls.find(
+      ([u, opts]) => u.includes("/config") && opts && opts.method === "PUT"
+    );
+    expect(putCall).toBeDefined();
+    const body = JSON.parse(putCall[1].body);
+    expect(body.duration_min).toBe(25);
+    expect(body.aspect_ratio).toBe("1:1");
+    expect(body.subtitle_enabled).toBe(true);
+    // API key kosong tidak dikirim supaya tidak menghapus key tersimpan.
+    expect(body).not.toHaveProperty("gemini_api_key");
+    expect(body).not.toHaveProperty("anthropic_api_key");
+  });
+
+  test("tombol tutup menutup panel pengaturan", async () => {
+    mockFetchQueue([DEFAULT_CONFIG]);
+    loadApp();
+    await openSettings();
+    await userEvent.click(screen.getByRole("button", { name: /tutup/i }));
+
+    const section = document.getElementById("settings-section");
+    expect(section).toHaveAttribute("hidden");
+    expect(section).not.toHaveClass("visible");
+  });
+});
+
 describe("progress render & output", () => {
   test("stage done menampilkan daftar file output", async () => {
     mockFetchQueue([

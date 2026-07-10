@@ -573,6 +573,171 @@
         }
       }
 
+      #settings-btn {
+        position: absolute;
+        top: var(--space-5);
+        right: var(--space-5);
+        background: transparent;
+        border: 1px solid var(--color-border);
+        color: var(--color-muted-fg);
+        padding: var(--space-2) var(--space-3);
+        min-height: 36px;
+        font-size: 13px;
+        box-shadow: none;
+      }
+
+      #settings-btn:hover:not(:disabled) {
+        color: var(--color-foreground);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: none;
+        align-items: flex-start;
+        justify-content: center;
+        padding: var(--space-5);
+        overflow-y: auto;
+      }
+
+      .modal.visible {
+        display: flex;
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-content {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 560px;
+        background: var(--bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        box-shadow: var(--shadow-md);
+        margin: auto;
+      }
+
+      .modal-content .section-header {
+        margin-bottom: var(--space-4);
+      }
+
+      .settings-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+      }
+
+      .settings-form fieldset {
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        padding: var(--space-3);
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--space-3);
+      }
+
+      .settings-form legend {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--color-primary);
+        padding: 0 var(--space-2);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .settings-form .field {
+        gap: var(--space-1);
+      }
+
+      .settings-form label {
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .settings-form input,
+      .settings-form select {
+        width: 100%;
+        background: var(--bg-elevated);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        color: var(--color-foreground);
+        padding: 10px 12px;
+        font-size: 14px;
+        min-height: 40px;
+      }
+
+      .settings-form input:focus,
+      .settings-form select:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.25);
+      }
+
+      .settings-form input[type="checkbox"] {
+        width: auto;
+        min-height: auto;
+        accent-color: var(--color-primary);
+      }
+
+      .settings-form .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-3);
+      }
+
+      .settings-form .key-field {
+        position: relative;
+      }
+
+      .settings-form .key-set {
+        font-size: 12px;
+        color: var(--color-success);
+        font-weight: 600;
+      }
+
+      .settings-form .output-dir {
+        display: flex;
+        gap: var(--space-2);
+      }
+
+      .settings-form .output-dir input {
+        flex: 1;
+      }
+
+      .settings-form .output-dir button {
+        min-height: 40px;
+        padding: 0 14px;
+      }
+
+      .form-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        justify-content: flex-end;
+      }
+
+      #settings-status {
+        font-size: 13px;
+        color: var(--color-muted-fg);
+      }
+
+      #settings-status.success {
+        color: var(--color-success);
+      }
+
+      #settings-status.error {
+        color: var(--color-destructive);
+      }
+
       @media (min-width: 640px) {
         #job-form {
           flex-direction: row;
@@ -582,10 +747,21 @@
         .field {
           flex: 1;
         }
+
+        .settings-form fieldset {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .settings-form .full {
+          grid-column: 1 / -1;
+        }
       }
     </style>
   </head>
   <body>
+    <button id="settings-btn" class="secondary" type="button" aria-label="Pengaturan">
+      &#9881; Pengaturan
+    </button>
     <div class="brand" aria-hidden="true">
       <div class="brand-dot"></div>
       <h1>AutoClip Lokal</h1>
@@ -648,6 +824,120 @@
       </div>
       <ul id="files-list"></ul>
       <button id="open-folder-btn" class="secondary" type="button">Buka Folder Output</button>
+    </section>
+
+    <section id="settings-section" class="modal" aria-label="Pengaturan" hidden>
+      <div class="modal-backdrop" id="settings-backdrop"></div>
+      <div class="modal-content">
+        <div class="section-header">
+          <h2>Pengaturan</h2>
+          <button id="settings-close" class="link" type="button">Tutup</button>
+        </div>
+        <form id="settings-form" class="settings-form">
+          <fieldset>
+            <legend>Output Video</legend>
+            <div class="field">
+              <label for="cfg-aspect-ratio">Aspect Ratio</label>
+              <select id="cfg-aspect-ratio" name="aspect_ratio">
+                <option value="9:16">9:16 (Vertikal)</option>
+                <option value="1:1">1:1 (Square)</option>
+                <option value="16:9">16:9 (Horizontal)</option>
+                <option value="4:5">4:5 (Vertikal pendek)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cfg-resolution">Resolusi</label>
+              <select id="cfg-resolution" name="resolution">
+                <option value="480">480p</option>
+                <option value="720">720p</option>
+                <option value="1080">1080p</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cfg-encoder">Encoder</label>
+              <select id="cfg-encoder" name="encoder">
+                <option value="auto">Auto</option>
+                <option value="libx264">libx264 (CPU)</option>
+                <option value="h264_videotoolbox">VideoToolbox (macOS)</option>
+                <option value="h264_nvenc">NVENC (NVIDIA)</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label for="cfg-output-dir">Folder Output</label>
+              <div class="output-dir">
+                <input id="cfg-output-dir" name="output_dir" type="text" placeholder="Default: ~/Movies/AutoClip" />
+                <button id="cfg-browse-dir" class="secondary" type="button">Pilih...</button>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Subtitle</legend>
+            <div class="field" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+              <input id="cfg-subtitle-enabled" name="subtitle_enabled" type="checkbox" />
+              <label for="cfg-subtitle-enabled" style="margin: 0;">Aktifkan subtitle</label>
+            </div>
+            <div class="field">
+              <label for="cfg-subtitle-font-size">Ukuran Font Subtitle</label>
+              <input id="cfg-subtitle-font-size" name="subtitle_font_size" type="number" min="24" max="160" />
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Analisis AI</legend>
+            <div class="field">
+              <label for="cfg-whisper-model">Model Whisper</label>
+              <select id="cfg-whisper-model" name="whisper_model">
+                <option value="tiny">tiny</option>
+                <option value="small">small</option>
+                <option value="medium">medium</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cfg-segment-count">Jumlah Segmen</label>
+              <input id="cfg-segment-count" name="segment_count" type="number" min="1" max="20" />
+            </div>
+            <div class="field">
+              <label for="cfg-duration-min">Durasi Min (detik)</label>
+              <input id="cfg-duration-min" name="duration_min" type="number" min="5" max="180" />
+            </div>
+            <div class="field">
+              <label for="cfg-duration-max">Durasi Max (detik)</label>
+              <input id="cfg-duration-max" name="duration_max" type="number" min="5" max="180" />
+            </div>
+            <div class="field">
+              <label for="cfg-llm-provider">Provider LLM</label>
+              <select id="cfg-llm-provider" name="llm_provider">
+                <option value="gemini">Gemini</option>
+                <option value="anthropic">Anthropic</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label for="cfg-llm-model">Model LLM (kosong = default)</label>
+              <input id="cfg-llm-model" name="llm_model" type="text" placeholder="gemini-2.5-flash / claude-opus-4-8" />
+            </div>
+            <div class="field full key-field">
+              <label for="cfg-gemini-key">
+                Gemini API Key
+                <span id="gemini-key-set" class="key-set" hidden>• tersimpan</span>
+              </label>
+              <input id="cfg-gemini-key" name="gemini_api_key" type="password" placeholder="Kosongkan jika tidak ingin mengubah" />
+            </div>
+            <div class="field full key-field">
+              <label for="cfg-anthropic-key">
+                Anthropic API Key
+                <span id="anthropic-key-set" class="key-set" hidden>• tersimpan</span>
+              </label>
+              <input id="cfg-anthropic-key" name="anthropic_api_key" type="password" placeholder="Kosongkan jika tidak ingin mengubah" />
+            </div>
+          </fieldset>
+
+          <div class="form-actions">
+            <span id="settings-status" role="status"></span>
+            <button id="settings-save" type="submit">Simpan</button>
+          </div>
+        </form>
+      </div>
     </section>
 
     <script src="./app.js"></script>
