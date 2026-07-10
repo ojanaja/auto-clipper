@@ -101,6 +101,7 @@ def test_factory_defaults_to_gemini(monkeypatch):
 def test_factory_anthropic(monkeypatch, mocker):
     mocker.patch("pipeline.llm_client.anthropic.Anthropic")
     monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
     assert isinstance(make_llm_client(), AnthropicLLMClient)
 
 

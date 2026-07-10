@@ -76,8 +76,12 @@ def make_llm_client(
 
     if provider == "anthropic":
         key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY belum diset. Isi di Pengaturan atau environment variable."
+            )
         default_model = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
-        return AnthropicLLMClient(model=model or default_model, api_key=key or None)
+        return AnthropicLLMClient(model=model or default_model, api_key=key)
 
     key = gemini_api_key or os.environ.get("GEMINI_API_KEY")
     if not key:

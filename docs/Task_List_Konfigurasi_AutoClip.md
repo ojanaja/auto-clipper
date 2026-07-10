@@ -15,12 +15,12 @@ Referensi arsitektur: config disimpan sebagai **file JSON lokal per instalasi** 
 
 ## Definition of Done keseluruhan fitur
 
-- [ ] `GET /config` & `PUT /config` jalan, persist ke JSON lokal, validasi input.
-- [ ] Rasio/resolusi/durasi/subtitle/model/provider/key/encoder benar-benar dipakai pipeline (bukan cuma disimpan).
-- [ ] API key **tidak** pernah dikembalikan mentah oleh `GET /config` (hanya flag `*_key_set`).
-- [ ] Panel Settings di Electron: load config saat buka, simpan via `PUT`, validasi ringan, feedback sukses/gagal.
-- [ ] Semua test unit lama tetap lulus (default config = perilaku sekarang: 9:16, 1080p, subtitle on, whisper small, provider gemini).
-- [ ] Smoke test e2e happy-path masih hijau.
+- [x] `GET /config` & `PUT /config` jalan, persist ke JSON lokal, validasi input.
+- [x] Rasio/resolusi/durasi/subtitle/model/provider/key/encoder benar-benar dipakai pipeline (bukan cuma disimpan).
+- [x] API key **tidak** pernah dikembalikan mentah oleh `GET /config` (hanya flag `*_key_set`).
+- [x] Panel Settings di Electron: load config saat buka, simpan via `PUT`, validasi ringan, feedback sukses/gagal.
+- [x] Semua test unit lama tetap lulus (default config = perilaku sekarang: 9:16, 1080p, subtitle on, whisper small, provider gemini).
+- [x] Smoke test e2e happy-path masih hijau.
 
 ---
 
@@ -190,10 +190,10 @@ Semua parametrize dengan **default = perilaku sekarang** supaya test lama tetap 
 - Update dokumen arsitektur (bagian Config & Secrets) bila perlu.
 
 ### E4. Verifikasi akhir
-- [ ] `cd backend && pytest && ruff check .`
-- [ ] `cd electron-app && npm test && npm run lint`
-- [ ] `npm run e2e` (happy-path + settings smoke)
-- [ ] Commit per fase (A–E), pesan `feat: ...`, pre-commit hijau.
+- [x] `cd backend && pytest && ruff check .`
+- [x] `cd electron-app && npm test && npm run lint`
+- [x] `npm run e2e` (happy-path + settings smoke)
+- [x] Commit per fase (A–E), pesan `feat: ...`, pre-commit hijau.
 
 ---
 

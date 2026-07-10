@@ -44,6 +44,32 @@ cd backend && source .venv/bin/activate && cd ..
 pre-commit install
 ```
 
+## Konfigurasi
+
+AutoClip menyimpan konfigurasi pengguna di file JSON lokal:
+
+- **macOS/Linux:** `~/.autoclip/config.json`
+- **Windows:** `%USERPROFILE%\.autoclip\config.json`
+- Bisa dioverride via env `AUTOCLIP_CONFIG_DIR`
+
+Buka panel **Pengaturan** di app untuk mengubah opsi; perubahan langsung berlaku untuk job berikutnya tanpa restart.
+
+| Opsi | Deskripsi |
+|------|-----------|
+| Aspect ratio | `9:16`, `1:1`, `16:9`, `4:5` |
+| Resolusi | `480p`, `720p`, `1080p` (short edge) |
+| Durasi min/max | Rentang durasi klip yang dicari LLM (5–180 detik) |
+| Subtitle | Aktifkan/nonaktifkan burn subtitle + ukuran font |
+| Whisper model | `tiny`, `small`, `medium` |
+| Jumlah segmen | Target kandidat highlight (1–20) |
+| LLM provider | `gemini` atau `anthropic` |
+| LLM model | Model spesifik; kosong = default provider |
+| API key | Gemini/Anthropic key (disimpan lokal) |
+| Encoder | `auto`, `libx264`, `h264_videotoolbox`, `h264_nvenc` |
+| Folder output | Lokasi hasil render; kosong = `~/Movies/AutoClip` |
+
+**Catatan keamanan MVP:** API key disimpan **plaintext** di JSON lokal. Ini sengaja untuk single-user localhost; file config hanya boleh diakses user sendiri. Untuk reset, hapus file `config.json` — app akan kembali ke default.
+
 ## Build & Packaging
 
 Installer `.dmg` (macOS) dan `.exe` (Windows) dibangun dengan **Electron Builder**, dengan backend Python di-bundle sebagai executable sidecar lewat **PyInstaller**. `ffmpeg`/`ffprobe` static juga dibundle agar user akhir tidak perlu menginstal dependency tambahan.
@@ -80,7 +106,7 @@ Output installer ada di `electron-app/dist/`:
 ## QA & Rilis
 
 - Fase 10 (QA, Bug Bash & Rilis) telah menyelesaikan smoke test pipeline nyata dengan video publik.
-- Semua test unit & integration lulus: 121 pytest, 14 Jest, 2 Playwright E2E, 1 integration real-video.
+- Semua test unit & integration lulus: ~200 pytest, 22 Jest, 3 Playwright E2E, 1 integration real-video.
 - Known issues / keterbatasan MVP:
   - Beberapa video YouTube butuh JS runtime (Deno/Node) agar yt-dlp bisa mengekstrak semua format; app biasanya tetap bisa mengunduh video umum.
   - Waktu transkripsi pertama kali lebih lama karena download model Whisper (~150 MB).

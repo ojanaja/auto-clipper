@@ -1,5 +1,4 @@
 import subprocess
-import sys
 import uuid
 from pathlib import Path
 
@@ -52,9 +51,9 @@ def _progress_percent(line: str, duration: float) -> int | None:
     return min(100, int(int(value) / 1_000_000 / duration * 100))
 
 
-def _resolve_encoder(encoder: str) -> str:
+def _resolve_encoder(encoder: str) -> str | None:
     if encoder == "auto":
-        return "h264_videotoolbox" if sys.platform == "darwin" else "libx264"
+        return None
     return encoder
 
 
@@ -121,14 +120,10 @@ def render_segment(
         str(source_path),
         "-vf",
         vf,
-        "-c:v",
-        video_codec,
-        "-c:a",
-        "aac",
-        "-pix_fmt",
-        "yuv420p",
-        str(output_path),
     ]
+    if video_codec is not None:
+        cmd += ["-c:v", video_codec]
+    cmd += ["-c:a", "aac", "-pix_fmt", "yuv420p", str(output_path)]
 
     if progress_cb is None:
         result = subprocess.run(cmd, capture_output=True, text=True)

@@ -82,6 +82,19 @@ def test_post_render_triggers_batch(client, fake_orchestrator):
     assert fake_orchestrator.run_render.call_args.args[1] == ["0", "1"]
 
 
+def test_post_render_uses_config_output_dir(client, fake_orchestrator, tmp_path, monkeypatch):
+    from config import AppConfig, save_config
+
+    monkeypatch.setenv("AUTOCLIP_CONFIG_DIR", str(tmp_path))
+    save_config(AppConfig(output_dir=str(tmp_path / "custom")), tmp_path / "config.json")
+
+    job_id = _create(client)
+    client.post(f"/jobs/{job_id}/render", json={"segment_ids": ["0"]})
+
+    output_dir = fake_orchestrator.run_render.call_args.args[2]
+    assert str(output_dir) == str(tmp_path / "custom")
+
+
 def test_post_render_empty_ids_rejected(client, fake_orchestrator):
     job_id = _create(client)
     resp = client.post(f"/jobs/{job_id}/render", json={"segment_ids": []})

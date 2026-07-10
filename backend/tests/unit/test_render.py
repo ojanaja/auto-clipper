@@ -214,3 +214,10 @@ def test_render_segment_uses_custom_encoder(mocker, tmp_path):
     ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
     assert "-c:v" in ffmpeg_cmd
     assert ffmpeg_cmd[ffmpeg_cmd.index("-c:v") + 1] == "libx264"
+
+
+def test_render_segment_auto_encoder_omits_video_codec(mocker, tmp_path):
+    calls = _fake_run_factory(mocker)
+    render_segment("source.mp4", SEGMENT, WORDS, tmp_path / "c.mp4", work_dir=tmp_path)
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    assert "-c:v" not in ffmpeg_cmd
