@@ -256,11 +256,25 @@ function setupApp(doc) {
     e.preventDefault();
     submitBtn.disabled = true;
     try {
-      const resp = await fetch(`${API_BASE}/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ youtube_url: urlInput.value }),
-      });
+      // Backend sidecar (PyInstaller onefile) bisa masih cold-start beberapa
+      // detik setelah app dibuka; retry singkat sebelum mengaku gagal supaya
+      // klik pertama tidak langsung "Failed to fetch".
+      const maxAttempts = 10;
+      let resp;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          resp = await fetch(`${API_BASE}/jobs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ youtube_url: urlInput.value }),
+          });
+          break;
+        } catch (err) {
+          if (attempt === maxAttempts) throw err;
+          setStatus("queued", "Menyiapkan backend, mencoba lagi...");
+          await new Promise((r) => win.setTimeout(r, 1500));
+        }
+      }
       const data = await resp.json();
       jobId = data.job_id;
       renderSteps();

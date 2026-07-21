@@ -33,6 +33,31 @@ describe("input link & status job", () => {
     expect(screen.getByText(/antrian/i)).toBeInTheDocument();
   });
 
+  test("submit retry saat backend belum siap (cold start), lalu berhasil", async () => {
+    let calls = 0;
+    global.fetch = jest.fn(() => {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new TypeError("Failed to fetch"));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ job_id: "job-1", status: "queued" }),
+      });
+    });
+    loadApp();
+
+    await userEvent.type(screen.getByPlaceholderText(/link youtube/i), "https://youtu.be/x");
+    await userEvent.click(screen.getByRole("button", { name: /ambil transkrip/i }));
+    await flush();
+    expect(screen.getByText(/menyiapkan backend/i)).toBeInTheDocument();
+
+    await new Promise((r) => setTimeout(r, 1600));
+    await flush();
+
+    expect(calls).toBe(2);
+    expect(screen.getByText(/antrian/i)).toBeInTheDocument();
+  }, 10000);
+
   test("membuka WebSocket ke job yang dibuat", async () => {
     mockFetchQueue([{ job_id: "job-42", status: "queued" }]);
     loadApp();
