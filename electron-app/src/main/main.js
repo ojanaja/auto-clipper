@@ -44,14 +44,23 @@ function spawnBackend() {
     if (fs.existsSync(binDir)) {
       env.PATH = binDir + path.delimiter + env.PATH;
     }
-    backendProcess = spawn(sidecarPath(), [], {
-      env,
-      stdio: "inherit",
-    });
+    // GUI Electron di Windows tak punya console; "inherit" membuang log backend.
+    // Alihkan stdout/stderr ke file supaya crash startup sidecar bisa dibaca user.
+    const logPath = path.join(app.getPath("userData"), "backend.log");
+    try {
+      const logFd = fs.openSync(logPath, "a");
+      backendProcess = spawn(sidecarPath(), [], { env, stdio: ["ignore", logFd, logFd] });
+    } catch {
+      backendProcess = spawn(sidecarPath(), [], { env, stdio: "inherit" });
+    }
+    console.log("Backend log:", logPath);
   }
 
   backendProcess.on("error", (err) => {
     console.error("Gagal spawn backend:", err.message);
+  });
+  backendProcess.on("exit", (code) => {
+    if (code) console.error(`Backend keluar dengan kode ${code}`);
   });
 }
 

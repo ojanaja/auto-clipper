@@ -166,7 +166,7 @@ def test_detect_faces_sampled_scales_and_filters_by_time(tmp_path, monkeypatch):
 
     frames = {0.0: frame, 0.5: frame}
 
-    with patch("pipeline.face_detect.cv2.VideoCapture", return_value=FakeCapture(frames)):
+    with patch("cv2.VideoCapture", return_value=FakeCapture(frames)):
         timeline = detect_faces_sampled(
             "video.mp4", start=0.0, end=1.0, fps=2, detector=detector
         )
@@ -195,7 +195,7 @@ def test_detect_faces_sampled_only_inside_range(tmp_path, monkeypatch):
     detector = _make_fake_detector(detections)
     frames = {0.0: frame, 0.5: frame}
 
-    with patch("pipeline.face_detect.cv2.VideoCapture", return_value=FakeCapture(frames)):
+    with patch("cv2.VideoCapture", return_value=FakeCapture(frames)):
         timeline = detect_faces_sampled(
             "video.mp4", start=0.2, end=0.6, fps=2, detector=detector
         )

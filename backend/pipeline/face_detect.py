@@ -10,10 +10,14 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
 import numpy as np
 
 from pipeline.reframe import BBox
+
+# ponytail: import cv2 (opencv) ditunda ke dalam fungsi yang memakainya.
+# cv2 punya DLL rapuh di Windows/PyInstaller; kalau di-import di top-level,
+# kegagalan load-nya menjatuhkan seluruh backend saat startup (app -> orchestrator
+# -> face_detect) padahal face-tracking default OFF dan jalur transkrip tak butuh cv2.
 
 YUNET_MODEL_URL = (
     "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/"
@@ -122,6 +126,8 @@ def sample_frames(
     if start >= end:
         return {}, 1.0
 
+    import cv2
+
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise FaceDetectError(f"Tidak bisa membuka video {video_path}")
@@ -171,6 +177,8 @@ def detect_faces_sampled(
     """
     if start >= end:
         return []
+
+    import cv2
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():

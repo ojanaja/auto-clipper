@@ -1,6 +1,5 @@
 """Pemilihan speaker aktif dari deteksi wajah berdasarkan gerakan mulut."""
 
-import cv2
 import numpy as np
 
 from pipeline.face_detect import Detection
@@ -38,6 +37,8 @@ def mouth_motion_score(prev_patch: np.ndarray | None, cur_patch: np.ndarray) -> 
     """
     if prev_patch is None or cur_patch is None:
         return 0.0
+
+    import cv2  # ponytail: ditunda; lihat catatan di face_detect.py
 
     def _gray(patch: np.ndarray) -> np.ndarray:
         if len(patch.shape) == 3 and patch.shape[2] >= 3:
