@@ -73,6 +73,39 @@ describe("input link & status job", () => {
     expect(FakeWebSocket.instances[0].url).toContain("/ws/jobs/job-42");
   });
 
+  test("tombol Coba Lagi muncul saat error tahap analisis, retry lewat endpoint checkpoint", async () => {
+    mockFetchQueue([
+      { job_id: "job-1", status: "queued" },
+      { job_id: "job-1", status: "retrying" },
+    ]);
+    loadApp();
+
+    await userEvent.type(screen.getByPlaceholderText(/link youtube/i), "https://youtu.be/x");
+    await userEvent.click(screen.getByRole("button", { name: /ambil transkrip/i }));
+    await flush();
+
+    const retryBtn = document.getElementById("retry-btn");
+    expect(retryBtn).toHaveAttribute("hidden");
+
+    FakeWebSocket.instances[0].emit({
+      stage: "error",
+      progress: 0,
+      message: "GEMINI_API_KEY belum diset",
+    });
+    await flush();
+    expect(retryBtn).not.toHaveAttribute("hidden");
+
+    await userEvent.click(retryBtn);
+    await flush();
+
+    const fetchMock = global.fetch;
+    const retryCall = fetchMock.mock.calls.find(([u]) => u.includes("/retry"));
+    expect(retryCall[0]).toContain("/jobs/job-1/retry");
+    expect(retryCall[1].method).toBe("POST");
+    expect(retryBtn).toHaveAttribute("hidden");
+    expect(screen.getByText(/antrian/i)).toBeInTheDocument();
+  });
+
   test("event WS mengubah status dan progress bar", async () => {
     mockFetchQueue([{ job_id: "job-1", status: "queued" }]);
     loadApp();
@@ -355,6 +388,34 @@ describe("progress render & output", () => {
     const list = within(document.getElementById("files-list"));
     expect(list.getByText(/klip_a\.mp4/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /buka folder output/i })).toBeVisible();
+  });
+
+  test("tombol Render aktif lagi setelah render gagal, tanpa perlu ubah centang", async () => {
+    mockFetchQueue([
+      { job_id: "job-1", status: "queued" },
+      SEGMENTS,
+      { render_job_id: "job-1", status: "queued" },
+    ]);
+    loadApp();
+
+    await userEvent.type(screen.getByPlaceholderText(/link youtube/i), "https://youtu.be/x");
+    await userEvent.click(screen.getByRole("button", { name: /ambil transkrip/i }));
+    await flush();
+    const ws = FakeWebSocket.instances[0];
+    ws.emit({ stage: "ready", progress: 100, message: "" });
+    await flush();
+
+    await userEvent.click(screen.getAllByRole("checkbox")[0]);
+    const renderBtn = screen.getByRole("button", { name: /render terpilih/i });
+    await userEvent.click(renderBtn);
+    expect(renderBtn).toBeDisabled();
+    await flush();
+
+    ws.emit({ stage: "error", progress: 0, message: "Semua klip gagal dirender." });
+    await flush();
+
+    // Klip yang sudah sukses dilewati backend saat klik lagi -> tombol harus bisa diklik.
+    expect(renderBtn).toBeEnabled();
   });
 });
 

@@ -148,6 +148,41 @@ def test_analysis_llm_error_sets_job_error(manager, broadcaster, deps):
     assert "API limit" in job.error
 
 
+def test_retry_after_analysis_error_skips_completed_stages(manager, broadcaster, deps):
+    # Gagal di tahap analisis (LLM); download & transkrip sudah selesai duluan.
+    deps["highlight_fn"].side_effect = RuntimeError("API limit")
+    job = manager.create_job(URL)
+    orch = _orchestrator(manager, broadcaster, deps)
+    orch.run_analysis(job.job_id)
+    assert job.status == JobStatus.ERROR
+    assert job.video_path == FAKE_META.filepath
+    assert job.words == FAKE_WORDS
+
+    deps["highlight_fn"].side_effect = None
+    deps["highlight_fn"].return_value = FAKE_SEGMENTS
+    orch.run_analysis(job.job_id)  # retry: job_id sama, checkpoint dipakai
+
+    assert job.status == JobStatus.READY
+    assert job.segments == FAKE_SEGMENTS
+    deps["download_fn"].assert_called_once()  # tidak diulang
+    deps["transcribe_fn"].assert_called_once()  # tidak diulang
+
+
+def test_retry_after_download_error_reruns_download(manager, broadcaster, deps):
+    deps["download_fn"].side_effect = RuntimeError("koneksi putus")
+    job = manager.create_job(URL)
+    orch = _orchestrator(manager, broadcaster, deps)
+    orch.run_analysis(job.job_id)
+    assert job.status == JobStatus.ERROR
+    assert job.video_path is None
+
+    deps["download_fn"].side_effect = None
+    orch.run_analysis(job.job_id)
+
+    assert job.status == JobStatus.READY
+    assert deps["download_fn"].call_count == 2
+
+
 # --- run_render ---
 
 
@@ -275,6 +310,33 @@ def test_render_can_rerun_from_done(manager, broadcaster, deps, tmp_path):
     orch.run_render(job.job_id, segment_ids=["1"], output_dir=tmp_path)
     assert job.status == JobStatus.DONE
     assert job.clips["1"]["status"] == "done"
+
+
+def test_render_retry_skips_already_done_clips(manager, broadcaster, deps, tmp_path):
+    job = _ready_job(manager, deps, broadcaster)
+    attempt = {"count": 0}
+
+    def flaky_once_for_b(src, seg, words, out, work_dir, progress_cb=None, **kwargs):
+        if seg.title == "B" and attempt["count"] == 0:
+            attempt["count"] += 1
+            raise RuntimeError("encoder crash")
+        Path(out).write_text("fake clip")
+        return out
+
+    deps["render_fn"].side_effect = flaky_once_for_b
+    orch = _orchestrator(manager, broadcaster, deps)
+
+    orch.run_render(job.job_id, segment_ids=["0", "1"], output_dir=tmp_path)
+    assert job.clips["0"]["status"] == "done"
+    assert job.clips["1"]["status"] == "error"
+    assert deps["render_fn"].call_count == 2
+
+    # Retry dengan segment_ids sama: klip "0" sudah sukses & filenya masih ada -> dilewati.
+    orch.run_render(job.job_id, segment_ids=["0", "1"], output_dir=tmp_path)
+
+    assert job.clips["1"]["status"] == "done"
+    assert job.status == JobStatus.DONE
+    assert deps["render_fn"].call_count == 3  # cuma "1" yang dirender ulang
 
 
 def test_render_output_filenames_safe(manager, broadcaster, deps, tmp_path):

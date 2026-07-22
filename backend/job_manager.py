@@ -104,3 +104,15 @@ class JobManager:
             job.status = JobStatus.READY
             job.error = None
         return job
+
+    def reset_for_retry(self, job_id: str) -> Job:
+        """Izinkan retry analisis setelah ERROR -> QUEUED.
+
+        video_path/words/segments yang sudah ada TIDAK dihapus — orchestrator
+        memakainya untuk melewati tahap yang sudah selesai (checkpoint).
+        """
+        job = self.get_job(job_id)
+        if job.status == JobStatus.ERROR:
+            job.status = JobStatus.QUEUED
+            job.error = None
+        return job

@@ -51,6 +51,7 @@ function setupApp(doc) {
   const elapsedEl = doc.getElementById("elapsed");
   const progressBar = doc.getElementById("progress-bar");
   const progressMessage = doc.getElementById("progress-message");
+  const retryBtn = doc.getElementById("retry-btn");
   const segmentsSection = doc.getElementById("segments-section");
   const segmentsEl = doc.getElementById("segments");
   const renderBtn = doc.getElementById("render-btn");
@@ -240,6 +241,17 @@ function setupApp(doc) {
       }
       if (data.stage === "ready") loadSegments();
       if (data.stage === "done") loadOutput();
+      // Retry checkpoint cuma untuk error tahap analisis (sebelum segmen tampil);
+      // error render sudah punya jalur retry sendiri (pilih ulang segmen + klik Render,
+      // yang sekarang otomatis melewati klip yang sudah sukses).
+      if (retryBtn) {
+        retryBtn.hidden = !(data.stage === "error" && !segmentsSection.classList.contains("visible"));
+      }
+      // Render berhenti (sukses atau gagal) -> tombol siap diklik lagi tanpa
+      // user harus utak-atik checkbox dulu, supaya klip yang gagal bisa diulang.
+      if (data.stage === "done" || data.stage === "error") {
+        renderBtn.disabled = selected.size === 0;
+      }
     };
     ws.onerror = () => {
       setStatus("error", "Koneksi progress terputus. Coba kirim ulang link.");
@@ -255,6 +267,7 @@ function setupApp(doc) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     submitBtn.disabled = true;
+    if (retryBtn) retryBtn.hidden = true;
     try {
       // Backend sidecar (PyInstaller onefile) bisa masih cold-start beberapa
       // detik setelah app dibuka; retry singkat sebelum mengaku gagal supaya
@@ -304,6 +317,26 @@ function setupApp(doc) {
       body: JSON.stringify({ segment_ids: [...selected] }),
     });
   });
+
+  if (retryBtn) {
+    retryBtn.addEventListener("click", async () => {
+      retryBtn.disabled = true;
+      try {
+        const resp = await fetch(`${API_BASE}/jobs/${jobId}/retry`, { method: "POST" });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || "Retry gagal");
+        retryBtn.hidden = true;
+        startTimer();
+        setStatus("queued");
+        progressBar.value = 0;
+        progressBar.classList.add("indeterminate");
+      } catch (err) {
+        setStatus("error", err.message);
+      } finally {
+        retryBtn.disabled = false;
+      }
+    });
+  }
 
   openFolderBtn.addEventListener("click", () => {
     if (typeof window !== "undefined" && window.autoclip) {

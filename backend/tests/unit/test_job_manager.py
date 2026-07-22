@@ -87,6 +87,22 @@ def test_backward_transition_rejected(manager):
         manager.transition(job.job_id, JobStatus.DOWNLOADING)
 
 
+def test_reset_for_retry_from_error_goes_to_queued(manager):
+    job = manager.create_job("https://youtu.be/abc123")
+    job.status = JobStatus.ERROR
+    job.error = "boom"
+    manager.reset_for_retry(job.job_id)
+    assert job.status == JobStatus.QUEUED
+    assert job.error is None
+
+
+def test_reset_for_retry_noop_when_not_error(manager):
+    job = manager.create_job("https://youtu.be/abc123")
+    job.status = JobStatus.TRANSCRIBING
+    manager.reset_for_retry(job.job_id)
+    assert job.status == JobStatus.TRANSCRIBING
+
+
 def test_set_progress(manager):
     job = manager.create_job("https://youtu.be/abc123")
     manager.set_progress(job.job_id, 42)

@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from config import AppConfig, ConfigError, load_config, resolve_output_dir, save_config
-from job_manager import JobManager, JobNotFoundError
+from job_manager import JobManager, JobNotFoundError, JobStatus
 from orchestrator import PipelineOrchestrator
 from progress import ProgressBroadcaster
 
@@ -70,6 +70,28 @@ def create_job(req: CreateJobRequest):
     job = job_manager.create_job(req.youtube_url)
     _spawn(orchestrator.run_analysis, job.job_id)
     return {"job_id": job.job_id, "status": job.status.value}
+
+
+@app.post("/jobs/{job_id}/retry", status_code=202)
+def retry_job(job_id: str):
+    """Retry tahap analisis (download/transkrip/analisis AI) yang gagal.
+
+    Checkpoint: video_path/words yang sudah ada dilewati orchestrator, jadi
+    user tidak perlu mengulang dari unduh. Untuk kegagalan render, segmen
+    sudah ada (job.segments terisi) -> arahkan pakai alur render ulang biasa
+    (pilih segmen, klik Render) supaya analisis yang sudah selesai tak diulang.
+    """
+    job = _get_job_or_404(job_id)
+    if job.status != JobStatus.ERROR:
+        raise HTTPException(status_code=409, detail="Job tidak dalam status error")
+    if job.segments:
+        raise HTTPException(
+            status_code=409,
+            detail="Analisis sudah selesai. Pilih ulang segmen lalu klik Render "
+            "untuk mengulang render.",
+        )
+    _spawn(orchestrator.run_analysis, job_id)
+    return {"job_id": job_id, "status": "retrying"}
 
 
 @app.get("/jobs/{job_id}")

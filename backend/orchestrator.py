@@ -65,31 +65,45 @@ class PipelineOrchestrator:
     def run_analysis(self, job_id: str) -> None:
         """download -> transcribe -> highlight; status queued -> ... -> ready.
 
+        Retry setelah error: tahap yang hasilnya sudah ada (video_path/words)
+        dilewati, jadi user tidak perlu mengulang dari unduh (checkpoint).
+        ponytail: skip pakai truthy check; audio bisu yang sah menghasilkan
+        words=[] akan re-transkrip saat retry (boros tapi bukan bug), upgrade
+        ke flag boolean terpisah kalau kasus ini ternyata sering kejadian.
+
         Exception dari tahap manapun ditangkap: job jadi error dengan pesan
         yang bisa dibaca user, tidak pernah crash keluar.
         """
         job = self._jobs.get_job(job_id)
         work_dir = self._work_root / job_id
         work_dir.mkdir(parents=True, exist_ok=True)
+        if job.status == JobStatus.ERROR:
+            self._jobs.reset_for_retry(job_id)
         try:
             self._jobs.transition(job_id, JobStatus.DOWNLOADING)
-            self._publish(job_id, "downloading", 0, "Mengunduh video")
-            meta = self._download(
-                job.youtube_url,
-                work_dir,
-                progress_cb=lambda pct, msg: self._publish(job_id, "downloading", pct, msg),
-            )
-            job.video_path = meta.filepath
+            if job.video_path:
+                self._publish(job_id, "downloading", 100, "Video sudah ada, lewati unduh")
+            else:
+                self._publish(job_id, "downloading", 0, "Mengunduh video")
+                meta = self._download(
+                    job.youtube_url,
+                    work_dir,
+                    progress_cb=lambda pct, msg: self._publish(job_id, "downloading", pct, msg),
+                )
+                job.video_path = meta.filepath
 
             cfg = self._config_provider()
 
             self._jobs.transition(job_id, JobStatus.TRANSCRIBING)
-            self._publish(job_id, "transcribing", 0, "Transkripsi audio")
-            job.words = self._transcribe(
-                meta.filepath,
-                model_size=cfg.whisper_model,
-                progress_cb=lambda pct, msg: self._publish(job_id, "transcribing", pct, msg),
-            )
+            if job.words:
+                self._publish(job_id, "transcribing", 100, "Transkrip sudah ada, lewati")
+            else:
+                self._publish(job_id, "transcribing", 0, "Transkripsi audio")
+                job.words = self._transcribe(
+                    job.video_path,
+                    model_size=cfg.whisper_model,
+                    progress_cb=lambda pct, msg: self._publish(job_id, "transcribing", pct, msg),
+                )
 
             self._jobs.transition(job_id, JobStatus.ANALYZING)
             self._publish(job_id, "analyzing", 0, "Mencari momen menarik")
@@ -164,6 +178,22 @@ class PipelineOrchestrator:
                 segment = job.segments[int(seg_id)]
                 filename = f"{job_id[:8]}_{seg_id}_{_safe_filename(segment.title)}.mp4"
                 output_path = output_dir / filename
+
+                # Checkpoint: klip yang sudah sukses & filenya masih ada dilewati,
+                # supaya retry render cuma mengulang klip yang gagal saja.
+                existing = job.clips.get(seg_id)
+                if (
+                    existing
+                    and existing["status"] == "done"
+                    and existing["path"]
+                    and Path(existing["path"]).exists()
+                ):
+                    successes += 1
+                    overall = (i + 1) * 100 // total
+                    msg = f"Klip {i + 1}/{total} sudah ada, lewati"
+                    self._publish(job_id, "rendering", overall, msg)
+                    continue
+
                 job.clips[seg_id] = {"status": "rendering", "progress": 0, "path": None}
 
                 def on_clip_progress(clip_pct, _msg, i=i, seg_id=seg_id):

@@ -387,6 +387,10 @@
         margin-top: var(--space-2);
       }
 
+      #retry-btn {
+        margin-top: var(--space-3);
+      }
+
       #segments-section {
         opacity: 0;
         transform: translateY(8px);
@@ -793,6 +797,7 @@
       <ol id="steps" class="steps" aria-label="Tahapan proses"></ol>
       <progress id="progress-bar" max="100" value="0"></progress>
       <p id="progress-message"></p>
+      <button id="retry-btn" class="secondary" type="button" hidden>Coba Lagi</button>
     </section>
 
     <section id="segments-section" aria-live="polite">
