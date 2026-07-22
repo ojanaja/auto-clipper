@@ -311,11 +311,17 @@ function setupApp(doc) {
     }
   });
 
-  setupSettings(doc);
+  const settingsApi = setupSettings(doc);
+  // Jangan auto-jalan saat test (mockFetchQueue tiap test punya urutan sendiri);
+  // Electron sungguhan selalu cek supaya user gak kejeblos gagal di tengah proses
+  // karena API key belum diisi (lihat needsApiKeySetup).
+  if (settingsApi && (!win.__AUTOCLIP_TEST__ || win.__AUTOCLIP_FORCE_API_KEY_CHECK__)) {
+    settingsApi.checkApiKey();
+  }
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { setupApp, formatTime };
+  module.exports = { setupApp, formatTime, needsApiKeySetup };
 }
 
 if (typeof window !== "undefined" && window.document && !window.__AUTOCLIP_TEST__) {
@@ -327,6 +333,14 @@ if (typeof window !== "undefined" && window.document && !window.__AUTOCLIP_TEST_
   }
 }
 
+// Provider aktif belum punya API key -> app tidak boleh dipakai dulu.
+// cfg tanpa field llm_provider (bukan respons /config asli) -> jangan lock.
+function needsApiKeySetup(cfg) {
+  if (typeof cfg.llm_provider !== "string") return false;
+  const keySet = cfg.llm_provider === "anthropic" ? cfg.anthropic_key_set : cfg.gemini_key_set;
+  return !keySet;
+}
+
 function setupSettings(doc) {
   const section = doc.getElementById("settings-section");
   const form = doc.getElementById("settings-form");
@@ -336,7 +350,9 @@ function setupSettings(doc) {
   const statusEl = doc.getElementById("settings-status");
   const browseBtn = doc.getElementById("cfg-browse-dir");
 
-  if (!section || !form) return;
+  if (!section || !form) return null;
+
+  let locked = false;
 
   function setStatus(text, type = "") {
     statusEl.textContent = text;
@@ -350,9 +366,33 @@ function setupSettings(doc) {
   }
 
   function close() {
+    if (locked) return;
     section.classList.remove("visible");
     section.hidden = true;
     setStatus("");
+  }
+
+  function applyLock(isLocked) {
+    locked = isLocked;
+    closeBtn.hidden = isLocked;
+    const jobForm = doc.getElementById("job-form");
+    if (jobForm) jobForm.hidden = isLocked;
+  }
+
+  async function checkApiKey() {
+    try {
+      const resp = await fetch(`${API_BASE}/config`);
+      if (!resp.ok) return;
+      const cfg = await resp.json();
+      if (!needsApiKeySetup(cfg)) return;
+      populate(cfg);
+      section.hidden = false;
+      section.classList.add("visible");
+      applyLock(true);
+      setStatus("Isi API key untuk mulai memakai AutoClip Lokal.", "");
+    } catch {
+      // Backend belum siap saat startup; job-form sendiri punya retry saat submit.
+    }
   }
 
   openBtn.addEventListener("click", open);
@@ -452,6 +492,10 @@ function setupSettings(doc) {
       form.elements.gemini_api_key.value = "";
       form.elements.anthropic_api_key.value = "";
       setStatus("Pengaturan tersimpan", "success");
+      if (locked && !needsApiKeySetup(result)) {
+        applyLock(false);
+        close();
+      }
     } catch (err) {
       setStatus(err.message || "Gagal menyimpan", "error");
     }
@@ -471,4 +515,6 @@ function setupSettings(doc) {
       }
     });
   }
+
+  return { checkApiKey };
 }

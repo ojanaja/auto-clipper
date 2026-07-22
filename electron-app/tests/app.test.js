@@ -357,3 +357,48 @@ describe("progress render & output", () => {
     expect(screen.getByRole("button", { name: /buka folder output/i })).toBeVisible();
   });
 });
+
+describe("needsApiKeySetup", () => {
+  test("true hanya saat provider aktif belum punya key; respons non-config diabaikan", () => {
+    const { needsApiKeySetup } = require("../src/renderer/app.js");
+    expect(needsApiKeySetup({ llm_provider: "gemini", gemini_key_set: false })).toBe(true);
+    expect(needsApiKeySetup({ llm_provider: "gemini", gemini_key_set: true })).toBe(false);
+    expect(needsApiKeySetup({ llm_provider: "anthropic", anthropic_key_set: false })).toBe(true);
+    expect(needsApiKeySetup({ llm_provider: "anthropic", anthropic_key_set: true })).toBe(false);
+    expect(needsApiKeySetup({ job_id: "job-1", status: "queued" })).toBe(false);
+  });
+});
+
+describe("onboarding: wajib isi API key", () => {
+  const NO_KEY_CONFIG = {
+    llm_provider: "gemini",
+    gemini_key_set: false,
+    anthropic_key_set: false,
+    aspect_ratio: "9:16",
+    resolution: 1080,
+  };
+
+  test("form job disembunyikan & pengaturan terkunci-terbuka sampai API key diisi", async () => {
+    mockFetchQueue([NO_KEY_CONFIG, { ...NO_KEY_CONFIG, gemini_key_set: true }]);
+    loadApp({ autoCheck: true });
+    await flush();
+
+    const jobForm = document.getElementById("job-form");
+    const section = document.getElementById("settings-section");
+    expect(jobForm).toHaveAttribute("hidden");
+    expect(section).not.toHaveAttribute("hidden");
+    expect(section).toHaveClass("visible");
+    expect(document.getElementById("settings-close")).toHaveAttribute("hidden");
+
+    // Backdrop tidak bisa menutup panel selama API key belum ada.
+    document.getElementById("settings-backdrop").click();
+    expect(section).toHaveClass("visible");
+
+    await userEvent.type(document.getElementById("cfg-gemini-key"), "AIza-test-key");
+    await userEvent.click(screen.getByRole("button", { name: /simpan/i }));
+    await flush();
+
+    expect(jobForm).not.toHaveAttribute("hidden");
+    expect(section).not.toHaveClass("visible");
+  });
+});

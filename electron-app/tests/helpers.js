@@ -20,8 +20,11 @@ class FakeWebSocket {
 }
 FakeWebSocket.instances = [];
 
-function loadApp() {
+function loadApp({ autoCheck = false } = {}) {
   window.__AUTOCLIP_TEST__ = true; // cegah auto-setup saat require
+  // autoCheck: true -> izinkan checkApiKey (onboarding gate) jalan seperti produksi,
+  // tanpa menghidupkan lagi auto-bootstrap DOMContentLoaded (tetap dijaga __AUTOCLIP_TEST__).
+  window.__AUTOCLIP_FORCE_API_KEY_CHECK__ = autoCheck;
   document.body.innerHTML = html.match(/<body>([\s\S]*)<\/body>/)[1];
   FakeWebSocket.instances = [];
   global.WebSocket = FakeWebSocket;
