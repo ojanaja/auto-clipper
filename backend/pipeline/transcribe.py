@@ -18,7 +18,7 @@ class TranscriptWord:
 def transcribe_audio(
     audio_path: Path,
     model_size: str = "small",
-    device: str = "auto",
+    device: str = "cpu",
     progress_cb=None,
 ) -> list[TranscriptWord]:
     """Transkripsi audio jadi list kata dengan timestamp per kata.
