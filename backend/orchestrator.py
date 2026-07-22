@@ -238,8 +238,10 @@ class PipelineOrchestrator:
                 self._jobs.transition(job_id, JobStatus.DONE)
                 self._publish(job_id, "done", 100, "Render selesai")
             else:
+                # Ambil dari BELAKANG: ffmpeg selalu cetak banner version/build config
+                # dulu, pesan error sungguhan ada di baris-baris terakhir stderr.
                 snippet = failure_msgs[0] if failure_msgs else "tidak diketahui"
-                detail = f"Semua klip gagal dirender. Contoh: {snippet[:300]}"
+                detail = f"Semua klip gagal dirender. Contoh: {snippet[-300:]}"
                 self._jobs.transition(job_id, JobStatus.ERROR, error=detail)
                 self._publish(job_id, "error", 0, detail)
         except Exception as e:
