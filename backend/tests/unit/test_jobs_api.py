@@ -75,6 +75,18 @@ def test_retry_analysis_error_respawns_pipeline(client, monkeypatch):
     assert calls == [(job_id,)]
 
 
+def test_retry_non_resumable_error_rejected(client):
+    job_id = client.post(
+        "/jobs", json={"youtube_url": "https://www.youtube.com/watch?v=abc123"}
+    ).json()["job_id"]
+    job = app_module.job_manager.get_job(job_id)
+    job.status = app_module.JobStatus.ERROR
+    job.resumable = False
+
+    resp = client.post(f"/jobs/{job_id}/retry")
+    assert resp.status_code == 409
+
+
 def test_retry_render_error_rejected_use_render_endpoint_instead(client):
     job_id = client.post(
         "/jobs", json={"youtube_url": "https://www.youtube.com/watch?v=abc123"}

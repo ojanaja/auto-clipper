@@ -44,6 +44,9 @@ class Job:
     status: JobStatus = JobStatus.QUEUED
     progress: int = 0
     error: str | None = None
+    # True kalau retry masuk akal (mis. koneksi putus); False untuk kesalahan
+    # yang pasti gagal lagi (URL invalid, API key ditolak) -> sembunyikan "Coba Lagi".
+    resumable: bool = True
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     # Hasil pipeline (diisi orchestrator).
     video_path: str | None = None
@@ -68,7 +71,13 @@ class JobManager:
         except KeyError:
             raise JobNotFoundError(f"Job tidak ditemukan: {job_id}") from None
 
-    def transition(self, job_id: str, new_status: JobStatus, error: str | None = None) -> Job:
+    def transition(
+        self,
+        job_id: str,
+        new_status: JobStatus,
+        error: str | None = None,
+        resumable: bool = True,
+    ) -> Job:
         job = self.get_job(job_id)
 
         if job.status in _TERMINAL:
@@ -77,6 +86,7 @@ class JobManager:
         if new_status == JobStatus.ERROR:
             job.status = JobStatus.ERROR
             job.error = error
+            job.resumable = resumable
             return job
 
         current_idx = _PIPELINE_ORDER.index(job.status)
@@ -115,4 +125,5 @@ class JobManager:
         if job.status == JobStatus.ERROR:
             job.status = JobStatus.QUEUED
             job.error = None
+            job.resumable = True
         return job

@@ -82,6 +82,17 @@ def test_gemini_http_error_raises(fake_httpx):
         GeminiLLMClient(api_key="k").complete("prompt")
 
 
+@pytest.mark.parametrize("status", [401, 403])
+def test_gemini_auth_error_raises_llm_auth_error(fake_httpx, status):
+    from pipeline.llm_client import LLMAuthError
+
+    _, response = fake_httpx
+    response.status_code = status
+    response.text = "invalid api key"
+    with pytest.raises(LLMAuthError):
+        GeminiLLMClient(api_key="bad-key").complete("prompt")
+
+
 def test_gemini_empty_candidates_raises(fake_httpx):
     _, response = fake_httpx
     response.json.return_value = {"candidates": []}
@@ -106,9 +117,11 @@ def test_factory_anthropic(monkeypatch, mocker):
 
 
 def test_factory_gemini_without_key_raises(monkeypatch):
+    from pipeline.llm_client import LLMAuthError
+
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(LLMAuthError):
         make_llm_client()
 
 

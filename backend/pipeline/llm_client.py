@@ -4,6 +4,11 @@ import anthropic
 import httpx
 
 
+class LLMAuthError(RuntimeError):
+    """API key belum diset atau ditolak provider — retry tidak akan membantu
+    sampai user memperbaiki key di Pengaturan."""
+
+
 class AnthropicLLMClient:
     """Implementasi LLMClient (lihat pipeline.highlight) memakai Claude API.
 
@@ -47,6 +52,10 @@ class GeminiLLMClient:
             json={"contents": [{"parts": [{"text": prompt}]}]},
             timeout=120,
         )
+        if response.status_code in (401, 403):
+            raise LLMAuthError(
+                f"Gemini API key ditolak ({response.status_code}): {response.text[:300]}"
+            )
         if response.status_code != 200:
             raise RuntimeError(f"Gemini API error {response.status_code}: {response.text[:300]}")
         candidates = response.json().get("candidates", [])
@@ -77,7 +86,7 @@ def make_llm_client(
     if provider == "anthropic":
         key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not key:
-            raise RuntimeError(
+            raise LLMAuthError(
                 "ANTHROPIC_API_KEY belum diset. Isi di Pengaturan atau environment variable."
             )
         default_model = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
@@ -85,7 +94,7 @@ def make_llm_client(
 
     key = gemini_api_key or os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise RuntimeError(
+        raise LLMAuthError(
             "GEMINI_API_KEY belum diset. Ambil key gratis di https://aistudio.google.com/apikey"
         )
     default_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")

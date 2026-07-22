@@ -241,11 +241,16 @@ function setupApp(doc) {
       }
       if (data.stage === "ready") loadSegments();
       if (data.stage === "done") loadOutput();
-      // Retry checkpoint cuma untuk error tahap analisis (sebelum segmen tampil);
-      // error render sudah punya jalur retry sendiri (pilih ulang segmen + klik Render,
-      // yang sekarang otomatis melewati klip yang sudah sukses).
+      // Retry checkpoint cuma untuk error tahap analisis (sebelum segmen tampil)
+      // yang resumable (bukan URL invalid/video privat/API key ditolak -- itu
+      // pasti gagal lagi tanpa user memperbaiki sesuatu). Error render sudah
+      // punya jalur retry sendiri (pilih ulang segmen + klik Render).
       if (retryBtn) {
-        retryBtn.hidden = !(data.stage === "error" && !segmentsSection.classList.contains("visible"));
+        const canRetry =
+          data.stage === "error" &&
+          data.resumable !== false &&
+          !segmentsSection.classList.contains("visible");
+        retryBtn.hidden = !canRetry;
       }
       // Render berhenti (sukses atau gagal) -> tombol siap diklik lagi tanpa
       // user harus utak-atik checkbox dulu, supaya klip yang gagal bisa diulang.

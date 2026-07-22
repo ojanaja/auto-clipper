@@ -148,6 +148,40 @@ def test_analysis_llm_error_sets_job_error(manager, broadcaster, deps):
     assert "API limit" in job.error
 
 
+def test_analysis_video_unavailable_error_marks_not_resumable(manager, broadcaster, deps):
+    from pipeline.download import VideoUnavailableError
+
+    deps["download_fn"].side_effect = VideoUnavailableError("video privat")
+    job = manager.create_job(URL)
+
+    _orchestrator(manager, broadcaster, deps).run_analysis(job.job_id)
+
+    assert job.status == JobStatus.ERROR
+    assert job.resumable is False
+
+
+def test_analysis_llm_auth_error_marks_not_resumable(manager, broadcaster, deps):
+    from pipeline.llm_client import LLMAuthError
+
+    deps["highlight_fn"].side_effect = LLMAuthError("GEMINI_API_KEY belum diset")
+    job = manager.create_job(URL)
+
+    _orchestrator(manager, broadcaster, deps).run_analysis(job.job_id)
+
+    assert job.status == JobStatus.ERROR
+    assert job.resumable is False
+
+
+def test_analysis_network_error_marks_resumable(manager, broadcaster, deps):
+    deps["download_fn"].side_effect = ConnectionError("koneksi putus")
+    job = manager.create_job(URL)
+
+    _orchestrator(manager, broadcaster, deps).run_analysis(job.job_id)
+
+    assert job.status == JobStatus.ERROR
+    assert job.resumable is True
+
+
 def test_retry_after_analysis_error_skips_completed_stages(manager, broadcaster, deps):
     # Gagal di tahap analisis (LLM); download & transkrip sudah selesai duluan.
     deps["highlight_fn"].side_effect = RuntimeError("API limit")

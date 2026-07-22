@@ -3,16 +3,39 @@ import sys
 import tempfile
 from pathlib import Path
 
+import anthropic
+
 from config import load_config, resolve_output_dir
 from job_manager import JobManager, JobStatus
 from pipeline.crop_path import build_crop_path
-from pipeline.download import download_video
+from pipeline.download import InvalidURLError, VideoUnavailableError, download_video
 from pipeline.face_detect import detect_faces_sampled, sample_frames
 from pipeline.highlight import find_highlights
-from pipeline.llm_client import make_llm_client
+from pipeline.llm_client import LLMAuthError, make_llm_client
 from pipeline.render import probe_dimensions, render_segment
 from pipeline.speaker import build_active_timeline, compute_motion_scores
 from pipeline.transcribe import transcribe_audio
+
+# Kesalahan yang PASTI gagal lagi kalau diulang tanpa user memperbaiki
+# sesuatu (URL salah, video privat, API key ditolak/belum diset) -> jangan
+# tampilkan tombol "Coba Lagi". Selain ini dianggap resumable (jaringan
+# putus, server API down, dll) -- default aman: klik retry yang gagal lagi
+# lebih ringan daripada menyembunyikan tombol padahal sebenarnya bisa diulang.
+_NON_RESUMABLE_ERRORS = (
+    InvalidURLError,
+    VideoUnavailableError,
+    LLMAuthError,
+    anthropic.AuthenticationError,
+    anthropic.PermissionDeniedError,
+    anthropic.BadRequestError,
+    anthropic.NotFoundError,
+    anthropic.UnprocessableEntityError,
+    anthropic.RequestTooLargeError,
+)
+
+
+def _is_resumable(exc: Exception) -> bool:
+    return not isinstance(exc, _NON_RESUMABLE_ERRORS)
 
 
 def _safe_filename(text: str, max_len: int = 40) -> str:
@@ -57,10 +80,18 @@ class PipelineOrchestrator:
         self._build_crop_path = build_crop_path_fn
         self._work_root = Path(work_root or tempfile.gettempdir()) / "autoclip"
 
-    def _publish(self, job_id: str, stage: str, progress: int, message: str = ""):
-        self._broadcaster.publish(
-            job_id, {"stage": stage, "progress": progress, "message": message}
-        )
+    def _publish(
+        self,
+        job_id: str,
+        stage: str,
+        progress: int,
+        message: str = "",
+        resumable: bool | None = None,
+    ):
+        event = {"stage": stage, "progress": progress, "message": message}
+        if resumable is not None:
+            event["resumable"] = resumable
+        self._broadcaster.publish(job_id, event)
 
     def run_analysis(self, job_id: str) -> None:
         """download -> transcribe -> highlight; status queued -> ... -> ready.
@@ -127,8 +158,9 @@ class PipelineOrchestrator:
             self._jobs.transition(job_id, JobStatus.READY)
             self._publish(job_id, "ready", 100, f"{len(job.segments)} segmen kandidat")
         except Exception as e:
-            self._jobs.transition(job_id, JobStatus.ERROR, error=str(e))
-            self._publish(job_id, "error", 0, str(e))
+            resumable = _is_resumable(e)
+            self._jobs.transition(job_id, JobStatus.ERROR, error=str(e), resumable=resumable)
+            self._publish(job_id, "error", 0, str(e), resumable=resumable)
 
     def run_render(
         self, job_id: str, segment_ids: list[str], output_dir: Path | None = None

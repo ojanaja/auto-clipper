@@ -90,6 +90,10 @@ def retry_job(job_id: str):
             detail="Analisis sudah selesai. Pilih ulang segmen lalu klik Render "
             "untuk mengulang render.",
         )
+    if not job.resumable:
+        raise HTTPException(
+            status_code=409, detail="Kesalahan ini tidak bisa diperbaiki dengan mengulang."
+        )
     _spawn(orchestrator.run_analysis, job_id)
     return {"job_id": job_id, "status": "retrying"}
 
@@ -102,6 +106,7 @@ def get_job(job_id: str):
         "status": job.status.value,
         "progress": job.progress,
         "error": job.error,
+        "resumable": job.resumable,
     }
 
 

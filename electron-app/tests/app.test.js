@@ -90,7 +90,8 @@ describe("input link & status job", () => {
     FakeWebSocket.instances[0].emit({
       stage: "error",
       progress: 0,
-      message: "GEMINI_API_KEY belum diset",
+      message: "Koneksi terputus saat mengunduh video",
+      resumable: true,
     });
     await flush();
     expect(retryBtn).not.toHaveAttribute("hidden");
@@ -104,6 +105,25 @@ describe("input link & status job", () => {
     expect(retryCall[1].method).toBe("POST");
     expect(retryBtn).toHaveAttribute("hidden");
     expect(screen.getByText(/antrian/i)).toBeInTheDocument();
+  });
+
+  test("tombol Coba Lagi disembunyikan untuk error yang tidak resumable (mis. API key ditolak)", async () => {
+    mockFetchQueue([{ job_id: "job-1", status: "queued" }]);
+    loadApp();
+
+    await userEvent.type(screen.getByPlaceholderText(/link youtube/i), "https://youtu.be/x");
+    await userEvent.click(screen.getByRole("button", { name: /ambil transkrip/i }));
+    await flush();
+
+    FakeWebSocket.instances[0].emit({
+      stage: "error",
+      progress: 0,
+      message: "GEMINI_API_KEY belum diset",
+      resumable: false,
+    });
+    await flush();
+
+    expect(document.getElementById("retry-btn")).toHaveAttribute("hidden");
   });
 
   test("event WS mengubah status dan progress bar", async () => {
