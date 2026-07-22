@@ -41,9 +41,11 @@ def _fake_run_factory(mocker, ffprobe_out="1920,1080"):
 
 def test_escape_filter_path_escapes_windows_drive_colon():
     # ':' pemisah option filter ffmpeg -> 'C:' drive letter mematahkan parser
-    # ("Invalid argument" ke original_size dkk) kalau tak di-escape.
+    # ("Invalid argument" ke original_size dkk) kalau tak di-escape dua kali
+    # (string -vf melewati dua tahap unescape ffmpeg, satu backslash abis di
+    # tahap pertama -- diverifikasi manual pakai ffmpeg asli).
     result = _escape_filter_path(PureWindowsPath(r"C:\Users\Fauzan\Movies\sub_abc123.ass"))
-    assert result == "C\\:/Users/Fauzan/Movies/sub_abc123.ass"
+    assert result == "C\\\\:/Users/Fauzan/Movies/sub_abc123.ass"
     assert result.count(":") == 1  # cuma colon drive letter yang tersisa (sudah di-escape)
 
 

@@ -80,9 +80,12 @@ def _escape_filter_path(path: Path) -> str:
     Sintaks -vf pakai ':' sebagai pemisah option dan '\\' sebagai escape char.
     Path Windows ("C:\\Users\\...") mematahkan parser: 'C:' kebaca sebagai akhir
     option filename, sisanya salah-parse jadi option lain (mis. "Invalid
-    argument" ke original_size). Ganti backslash jadi slash lalu escape colon.
+    argument" ke original_size). String -vf melewati DUA tahap unescape ffmpeg
+    (parse nama+args filter, lalu parse tiap key:value) -- satu backslash abis
+    di tahap pertama, jadi colon perlu di-escape dua kali (`\\\\:`) supaya
+    lolos ke tahap kedua masih literal. Diverifikasi manual pakai ffmpeg asli.
     """
-    return str(path).replace("\\", "/").replace(":", r"\:")
+    return str(path).replace("\\", "/").replace(":", r"\\:")
 
 
 def _resolve_encoder(encoder: str) -> str | None:
