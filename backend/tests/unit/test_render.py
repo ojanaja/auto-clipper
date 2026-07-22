@@ -1,3 +1,4 @@
+from pathlib import PurePosixPath, PureWindowsPath
 from types import SimpleNamespace
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 from pipeline.highlight import Segment
 from pipeline.render import (
     RenderError,
+    _escape_filter_path,
     _progress_percent,
     probe_dimensions,
     render_segment,
@@ -35,6 +37,19 @@ def _fake_run_factory(mocker, ffprobe_out="1920,1080"):
 
     mocker.patch("pipeline.render.subprocess.run", side_effect=fake_run)
     return calls
+
+
+def test_escape_filter_path_escapes_windows_drive_colon():
+    # ':' pemisah option filter ffmpeg -> 'C:' drive letter mematahkan parser
+    # ("Invalid argument" ke original_size dkk) kalau tak di-escape.
+    result = _escape_filter_path(PureWindowsPath(r"C:\Users\Fauzan\Movies\sub_abc123.ass"))
+    assert result == "C\\:/Users/Fauzan/Movies/sub_abc123.ass"
+    assert result.count(":") == 1  # cuma colon drive letter yang tersisa (sudah di-escape)
+
+
+def test_escape_filter_path_posix_unchanged():
+    result = _escape_filter_path(PurePosixPath("/tmp/autoclip/sub_abc123.ass"))
+    assert result == "/tmp/autoclip/sub_abc123.ass"
 
 
 def test_probe_dimensions(mocker):

@@ -74,6 +74,17 @@ def _progress_percent(line: str, duration: float) -> int | None:
     return min(100, int(int(value) / 1_000_000 / duration * 100))
 
 
+def _escape_filter_path(path: Path) -> str:
+    """Escape path untuk value option filter ffmpeg (mis. ass=filename=...).
+
+    Sintaks -vf pakai ':' sebagai pemisah option dan '\\' sebagai escape char.
+    Path Windows ("C:\\Users\\...") mematahkan parser: 'C:' kebaca sebagai akhir
+    option filename, sisanya salah-parse jadi option lain (mis. "Invalid
+    argument" ke original_size). Ganti backslash jadi slash lalu escape colon.
+    """
+    return str(path).replace("\\", "/").replace(":", r"\:")
+
+
 def _resolve_encoder(encoder: str) -> str | None:
     if encoder == "auto":
         return None
@@ -136,7 +147,7 @@ def render_segment(
                     output_height=output_height,
                 )
             )
-            vf_parts.append(f"ass=filename={ass_path}")
+            vf_parts.append(f"ass=filename={_escape_filter_path(ass_path)}")
         else:
             print(
                 "WARNING: ffmpeg build ini tidak mendukung filter 'ass' (libass); "
