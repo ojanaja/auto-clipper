@@ -63,11 +63,15 @@ def generate_ass(
             # Durasi \k mencakup jeda ke kata berikutnya agar karaoke tidak drift.
             until = group[j + 1].start if j + 1 < len(group) else w.end
             duration_cs = round((until - w.start) * 100)
-            parts.append(f"{{\\k{duration_cs}}}{w.word}")
+            # Whisper motong kata majemuk berhyphen ("video-on-demand") jadi token
+            # terpisah ("video", "-on", "-demand") tanpa spasi sebelum sambungannya
+            # -- jangan tambah spasi di situ, sisanya tetap dipisah spasi.
+            sep = "" if j == 0 or w.word.startswith("-") else " "
+            parts.append(f"{sep}{{\\k{duration_cs}}}{w.word}")
 
         lines.append(
             f"Dialogue: 0,{_format_ass_time(line_start)},{_format_ass_time(line_end)},"
-            f"Default,,0,0,0,,{' '.join(parts)}\n"
+            f"Default,,0,0,0,,{''.join(parts)}\n"
         )
     return "".join(lines)
 
