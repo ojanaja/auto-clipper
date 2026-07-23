@@ -121,6 +121,10 @@
         box-shadow: var(--shadow-sm);
       }
 
+      #job-form[hidden] {
+        display: none;
+      }
+
       input[type="url"] {
         width: 100%;
         background: var(--bg-elevated);
@@ -165,6 +169,10 @@
           transform 120ms var(--ease-out),
           opacity 180ms var(--ease-out);
         box-shadow: var(--shadow-sm);
+      }
+
+      button[hidden] {
+        display: none;
       }
 
       button:hover:not(:disabled) {
