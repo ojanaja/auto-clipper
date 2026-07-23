@@ -240,7 +240,7 @@ describe("jeda preview: unduh & transkrip", () => {
         video_duration: 125,
         video_width: 1920,
         video_height: 1080,
-        video_thumbnail: "https://img.example/thumb.jpg",
+        has_thumbnail: true,
       },
     ]);
 
@@ -250,9 +250,21 @@ describe("jeda preview: unduh & transkrip", () => {
     expect(document.getElementById("download-preview-section")).toHaveClass("visible");
     expect(document.getElementById("download-preview-title")).toHaveTextContent("Judul Video");
     expect(document.getElementById("download-preview-meta")).toHaveTextContent(/2:05/);
-    expect(document.getElementById("download-preview-thumb").src).toContain("thumb.jpg");
+    expect(document.getElementById("download-preview-thumb").src).toContain(
+      "/jobs/job-1/thumbnail"
+    );
     expect(document.querySelector('[data-step="download"]')).toHaveClass("done");
     expect(document.querySelector('[data-step="transcribe"]')).toHaveClass("pending");
+  });
+
+  test("thumbnail disembunyikan kalau video tidak punya thumbnail", async () => {
+    const ws = await submit();
+    mockFetchQueue([{ video_title: "V", video_duration: 10, has_thumbnail: false }]);
+
+    ws.emit({ stage: "download_ready", progress: 100, message: "" });
+    await flush();
+
+    expect(document.getElementById("download-preview-thumb")).toHaveAttribute("hidden");
   });
 
   test("klik Lanjutkan di preview unduhan memanggil POST /continue", async () => {

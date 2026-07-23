@@ -45,6 +45,30 @@ def test_download_calls_extract_info_with_url(fake_ydl, tmp_path):
     fake_ydl.extract_info.assert_called_once_with(URL, download=True)
 
 
+def test_download_thumbnail_none_when_file_not_written(fake_ydl, tmp_path):
+    # yt-dlp di-mock -> writethumbnail gak beneran nulis file; harus None, bukan crash.
+    meta = download_video(URL, tmp_path)
+    assert meta.thumbnail is None
+
+
+def test_download_thumbnail_path_when_file_exists(fake_ydl, tmp_path):
+    # Simulasikan writethumbnail+convertor yt-dlp udah nulis <video_id>.jpg.
+    (tmp_path / "dQw4w9WgXcQ.jpg").write_bytes(b"fake-jpg-bytes")
+    meta = download_video(URL, tmp_path)
+    assert meta.thumbnail == str(tmp_path / "dQw4w9WgXcQ.jpg")
+
+
+def test_download_options_request_thumbnail_as_jpg(fake_ydl, tmp_path, mocker):
+    cls = mocker.patch("pipeline.download.YoutubeDL")
+    cls.return_value.__enter__.return_value = fake_ydl
+
+    download_video(URL, tmp_path)
+
+    opts = cls.call_args.args[0]
+    assert opts["writethumbnail"] is True
+    assert opts["postprocessors"] == [{"key": "FFmpegThumbnailsConvertor", "format": "jpg"}]
+
+
 def test_progress_hook_maps_percent():
     seen = []
     hook = _make_progress_hook(lambda pct, msg: seen.append((pct, msg)))

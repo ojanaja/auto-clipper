@@ -22,7 +22,7 @@ FAKE_META = SimpleNamespace(
     width=1920,
     height=1080,
     filepath="/tmp/work/dQw4w9WgXcQ.mp4",
-    thumbnail="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    thumbnail="/tmp/work/dQw4w9WgXcQ.jpg",
 )
 FAKE_WORDS = [TranscriptWord(word="halo", start=1.0, end=1.5)]
 FAKE_SEGMENTS = [

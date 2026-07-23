@@ -141,14 +141,46 @@ def test_get_job_includes_video_preview_fields(client):
     job.video_duration = 42
     job.video_width = 1920
     job.video_height = 1080
-    job.video_thumbnail = "https://example.com/thumb.jpg"
+    job.video_thumbnail = "/tmp/work/dQw4w9WgXcQ.jpg"
 
     body = client.get(f"/jobs/{job_id}").json()
     assert body["video_title"] == "Judul Video"
     assert body["video_duration"] == 42
     assert body["video_width"] == 1920
     assert body["video_height"] == 1080
-    assert body["video_thumbnail"] == "https://example.com/thumb.jpg"
+    assert body["has_thumbnail"] is True
+
+
+def test_get_job_has_thumbnail_false_before_download(client):
+    job_id = client.post(
+        "/jobs", json={"youtube_url": "https://www.youtube.com/watch?v=abc123"}
+    ).json()["job_id"]
+    assert client.get(f"/jobs/{job_id}").json()["has_thumbnail"] is False
+
+
+def test_get_thumbnail_serves_file(client, tmp_path):
+    job_id = client.post(
+        "/jobs", json={"youtube_url": "https://www.youtube.com/watch?v=abc123"}
+    ).json()["job_id"]
+    thumb_path = tmp_path / "thumb.jpg"
+    thumb_path.write_bytes(b"fake-jpg-bytes")
+    app_module.job_manager.get_job(job_id).video_thumbnail = str(thumb_path)
+
+    resp = client.get(f"/jobs/{job_id}/thumbnail")
+    assert resp.status_code == 200
+    assert resp.content == b"fake-jpg-bytes"
+    assert resp.headers["content-type"] == "image/jpeg"
+
+
+def test_get_thumbnail_404_when_missing(client):
+    job_id = client.post(
+        "/jobs", json={"youtube_url": "https://www.youtube.com/watch?v=abc123"}
+    ).json()["job_id"]
+    assert client.get(f"/jobs/{job_id}/thumbnail").status_code == 404
+
+
+def test_get_thumbnail_unknown_job_404(client):
+    assert client.get("/jobs/nope/thumbnail").status_code == 404
 
 
 def test_get_transcript_joins_words(client):

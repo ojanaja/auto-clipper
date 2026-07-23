@@ -220,8 +220,8 @@ function setupApp(doc) {
   async function loadDownloadPreview() {
     const resp = await fetch(`${API_BASE}/jobs/${jobId}`);
     const data = await resp.json();
-    downloadPreviewThumb.hidden = !data.video_thumbnail;
-    downloadPreviewThumb.src = data.video_thumbnail || "";
+    downloadPreviewThumb.hidden = !data.has_thumbnail;
+    downloadPreviewThumb.src = data.has_thumbnail ? `${API_BASE}/jobs/${jobId}/thumbnail` : "";
     downloadPreviewTitle.textContent = data.video_title || "(tanpa judul)";
     const dims =
       data.video_width && data.video_height ? `${data.video_width}x${data.video_height} • ` : "";

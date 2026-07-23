@@ -3,6 +3,7 @@ import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from config import AppConfig, ConfigError, load_config, resolve_output_dir, save_config
@@ -128,7 +129,7 @@ def get_job(job_id: str):
         "video_duration": job.video_duration,
         "video_width": job.video_width,
         "video_height": job.video_height,
-        "video_thumbnail": job.video_thumbnail,
+        "has_thumbnail": job.video_thumbnail is not None,
     }
 
 
@@ -136,6 +137,14 @@ def get_job(job_id: str):
 def get_transcript(job_id: str):
     job = _get_job_or_404(job_id)
     return {"text": join_words(job.words)}
+
+
+@app.get("/jobs/{job_id}/thumbnail")
+def get_thumbnail(job_id: str):
+    job = _get_job_or_404(job_id)
+    if not job.video_thumbnail or not os.path.isfile(job.video_thumbnail):
+        raise HTTPException(status_code=404, detail="Thumbnail tidak tersedia")
+    return FileResponse(job.video_thumbnail, media_type="image/jpeg")
 
 
 @app.get("/jobs/{job_id}/segments")

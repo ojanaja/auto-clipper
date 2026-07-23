@@ -30,6 +30,8 @@ class VideoMetadata:
     width: int | None
     height: int | None
     filepath: str
+    # Path file lokal (jpg, hasil writethumbnail+convertor yt-dlp), bukan URL
+    # remote -- biar preview di UI gak bergantung akses internet ke CDN YouTube.
     thumbnail: str | None = None
 
 
@@ -113,6 +115,10 @@ def download_video(url: str, dest_dir: Path, progress_cb=None) -> VideoMetadata:
         "outtmpl": str(Path(dest_dir) / "%(id)s.%(ext)s"),
         "noplaylist": True,
         "quiet": True,
+        "writethumbnail": True,
+        # Sumber thumbnail YouTube biasanya webp; convert ke jpg (format stabil,
+        # gampang di-<img> tanpa cek MIME) pakai ffmpeg yang sudah jadi dependency.
+        "postprocessors": [{"key": "FFmpegThumbnailsConvertor", "format": "jpg"}],
     }
     if progress_cb is not None:
         opts["progress_hooks"] = [_make_progress_hook(progress_cb)]
@@ -128,6 +134,8 @@ def download_video(url: str, dest_dir: Path, progress_cb=None) -> VideoMetadata:
             ) from e
         raise DownloadFailedError(f"Download gagal untuk video {video_id}: {msg}") from e
 
+    thumbnail_path = Path(dest_dir) / f"{info['id']}.jpg"
+
     return VideoMetadata(
         video_id=info["id"],
         title=info.get("title", ""),
@@ -135,5 +143,5 @@ def download_video(url: str, dest_dir: Path, progress_cb=None) -> VideoMetadata:
         width=info.get("width"),
         height=info.get("height"),
         filepath=filepath,
-        thumbnail=info.get("thumbnail"),
+        thumbnail=str(thumbnail_path) if thumbnail_path.exists() else None,
     )
