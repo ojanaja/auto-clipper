@@ -222,6 +222,96 @@ describe("visibilitas progress (anti-freeze)", () => {
   });
 });
 
+describe("jeda preview: unduh & transkrip", () => {
+  async function submit() {
+    mockFetchQueue([{ job_id: "job-1", status: "queued" }]);
+    loadApp();
+    await userEvent.type(screen.getByPlaceholderText(/link youtube/i), "https://youtu.be/x");
+    await userEvent.click(screen.getByRole("button", { name: /ambil transkrip/i }));
+    await flush();
+    return FakeWebSocket.instances[0];
+  }
+
+  test("stage download_ready menampilkan preview video & step download selesai", async () => {
+    const ws = await submit();
+    mockFetchQueue([
+      {
+        video_title: "Judul Video",
+        video_duration: 125,
+        video_width: 1920,
+        video_height: 1080,
+        video_thumbnail: "https://img.example/thumb.jpg",
+      },
+    ]);
+
+    ws.emit({ stage: "download_ready", progress: 100, message: "Video siap" });
+    await flush();
+
+    expect(document.getElementById("download-preview-section")).toHaveClass("visible");
+    expect(document.getElementById("download-preview-title")).toHaveTextContent("Judul Video");
+    expect(document.getElementById("download-preview-meta")).toHaveTextContent(/2:05/);
+    expect(document.getElementById("download-preview-thumb").src).toContain("thumb.jpg");
+    expect(document.querySelector('[data-step="download"]')).toHaveClass("done");
+    expect(document.querySelector('[data-step="transcribe"]')).toHaveClass("pending");
+  });
+
+  test("klik Lanjutkan di preview unduhan memanggil POST /continue", async () => {
+    const ws = await submit();
+    mockFetchQueue([{ video_title: "V", video_duration: 10 }]);
+    ws.emit({ stage: "download_ready", progress: 100, message: "" });
+    await flush();
+
+    const fetchMock = mockFetchQueue([{ job_id: "job-1", status: "continuing" }]);
+    await userEvent.click(screen.getByRole("button", { name: /lanjutkan ke transkrip/i }));
+    await flush();
+
+    const call = fetchMock.mock.calls.find(([u]) => u.includes("/continue"));
+    expect(call[0]).toContain("/jobs/job-1/continue");
+    expect(call[1].method).toBe("POST");
+  });
+
+  test("preview unduhan sembunyi lagi begitu stage lanjut ke transcribing", async () => {
+    const ws = await submit();
+    mockFetchQueue([{ video_title: "V", video_duration: 10 }]);
+    ws.emit({ stage: "download_ready", progress: 100, message: "" });
+    await flush();
+    expect(document.getElementById("download-preview-section")).toHaveClass("visible");
+
+    ws.emit({ stage: "transcribing", progress: 0, message: "" });
+    await flush();
+    expect(document.getElementById("download-preview-section")).not.toHaveClass("visible");
+  });
+
+  test("stage transcript_ready menampilkan preview teks transkrip", async () => {
+    const ws = await submit();
+    mockFetchQueue([{ text: "halo dunia ini transkrip" }]);
+
+    ws.emit({ stage: "transcript_ready", progress: 100, message: "" });
+    await flush();
+
+    expect(document.getElementById("transcript-preview-section")).toHaveClass("visible");
+    expect(document.getElementById("transcript-preview-text")).toHaveTextContent(
+      "halo dunia ini transkrip"
+    );
+    expect(document.querySelector('[data-step="transcribe"]')).toHaveClass("done");
+    expect(document.querySelector('[data-step="analyze"]')).toHaveClass("pending");
+  });
+
+  test("klik Lanjutkan di preview transkrip memanggil POST /continue", async () => {
+    const ws = await submit();
+    mockFetchQueue([{ text: "halo" }]);
+    ws.emit({ stage: "transcript_ready", progress: 100, message: "" });
+    await flush();
+
+    const fetchMock = mockFetchQueue([{ job_id: "job-1", status: "continuing" }]);
+    await userEvent.click(screen.getByRole("button", { name: /lanjutkan ke analisis ai/i }));
+    await flush();
+
+    const call = fetchMock.mock.calls.find(([u]) => u.includes("/continue"));
+    expect(call[0]).toContain("/jobs/job-1/continue");
+  });
+});
+
 describe("daftar segmen & seleksi", () => {
   async function readyApp() {
     mockFetchQueue([{ job_id: "job-1", status: "queued" }, SEGMENTS]);

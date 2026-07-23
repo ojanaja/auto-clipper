@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from config import AppConfig, ConfigError, load_config, resolve_output_dir, save_config
 from job_manager import JobManager, JobNotFoundError, JobStatus
 from orchestrator import PipelineOrchestrator
+from pipeline.subtitle import join_words
 from progress import ProgressBroadcaster
 
 app = FastAPI(title="AutoClip Lokal Backend")
@@ -65,21 +66,36 @@ def health():
     return {"status": "ok"}
 
 
+_CONTINUABLE_STATUSES = {JobStatus.DOWNLOAD_READY, JobStatus.TRANSCRIPT_READY}
+
+
 @app.post("/jobs", status_code=201)
 def create_job(req: CreateJobRequest):
     job = job_manager.create_job(req.youtube_url)
-    _spawn(orchestrator.run_analysis, job.job_id)
+    _spawn(orchestrator.dispatch, job.job_id)
     return {"job_id": job.job_id, "status": job.status.value}
+
+
+@app.post("/jobs/{job_id}/continue", status_code=202)
+def continue_job(job_id: str):
+    """Lanjut ke tahap berikutnya dari jeda preview (download_ready/transcript_ready)."""
+    job = _get_job_or_404(job_id)
+    if job.status not in _CONTINUABLE_STATUSES:
+        raise HTTPException(
+            status_code=409, detail="Job tidak sedang menunggu konfirmasi lanjut"
+        )
+    _spawn(orchestrator.dispatch, job_id)
+    return {"job_id": job_id, "status": "continuing"}
 
 
 @app.post("/jobs/{job_id}/retry", status_code=202)
 def retry_job(job_id: str):
-    """Retry tahap analisis (download/transkrip/analisis AI) yang gagal.
+    """Retry tahap (download/transkrip/analisis AI) yang gagal.
 
-    Checkpoint: video_path/words yang sudah ada dilewati orchestrator, jadi
-    user tidak perlu mengulang dari unduh. Untuk kegagalan render, segmen
-    sudah ada (job.segments terisi) -> arahkan pakai alur render ulang biasa
-    (pilih segmen, klik Render) supaya analisis yang sudah selesai tak diulang.
+    Checkpoint: resume dari tahap yang gagal saja (video/transkrip yang sudah
+    ada dilewati). Untuk kegagalan render, segmen sudah ada (job.segments
+    terisi) -> arahkan pakai alur render ulang biasa (pilih segmen, klik
+    Render) supaya analisis yang sudah selesai tak diulang.
     """
     job = _get_job_or_404(job_id)
     if job.status != JobStatus.ERROR:
@@ -94,7 +110,8 @@ def retry_job(job_id: str):
         raise HTTPException(
             status_code=409, detail="Kesalahan ini tidak bisa diperbaiki dengan mengulang."
         )
-    _spawn(orchestrator.run_analysis, job_id)
+    job_manager.reset_for_retry(job_id)
+    _spawn(orchestrator.dispatch, job_id)
     return {"job_id": job_id, "status": "retrying"}
 
 
@@ -107,7 +124,18 @@ def get_job(job_id: str):
         "progress": job.progress,
         "error": job.error,
         "resumable": job.resumable,
+        "video_title": job.video_title,
+        "video_duration": job.video_duration,
+        "video_width": job.video_width,
+        "video_height": job.video_height,
+        "video_thumbnail": job.video_thumbnail,
     }
+
+
+@app.get("/jobs/{job_id}/transcript")
+def get_transcript(job_id: str):
+    job = _get_job_or_404(job_id)
+    return {"text": join_words(job.words)}
 
 
 @app.get("/jobs/{job_id}/segments")

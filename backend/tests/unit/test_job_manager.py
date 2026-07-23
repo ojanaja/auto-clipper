@@ -31,7 +31,9 @@ def test_valid_transition_chain(manager):
     job = manager.create_job("https://youtu.be/abc123")
     for status in [
         JobStatus.DOWNLOADING,
+        JobStatus.DOWNLOAD_READY,
         JobStatus.TRANSCRIBING,
+        JobStatus.TRANSCRIPT_READY,
         JobStatus.ANALYZING,
         JobStatus.READY,
         JobStatus.RENDERING,
@@ -46,7 +48,9 @@ def test_valid_transition_chain(manager):
     [
         JobStatus.QUEUED,
         JobStatus.DOWNLOADING,
+        JobStatus.DOWNLOAD_READY,
         JobStatus.TRANSCRIBING,
+        JobStatus.TRANSCRIPT_READY,
         JobStatus.ANALYZING,
         JobStatus.READY,
         JobStatus.RENDERING,
@@ -107,6 +111,24 @@ def test_reset_for_retry_from_error_goes_to_queued(manager):
     assert job.status == JobStatus.QUEUED
     assert job.error is None
     assert job.resumable is True
+
+
+@pytest.mark.parametrize(
+    "failed_at,expected_resume",
+    [
+        (JobStatus.DOWNLOADING, JobStatus.QUEUED),
+        (JobStatus.TRANSCRIBING, JobStatus.DOWNLOAD_READY),
+        (JobStatus.ANALYZING, JobStatus.TRANSCRIPT_READY),
+    ],
+)
+def test_reset_for_retry_resumes_from_checkpoint(manager, failed_at, expected_resume):
+    job = manager.create_job("https://youtu.be/abc123")
+    job.status = failed_at
+    manager.transition(job.job_id, JobStatus.ERROR, error="boom")
+    manager.reset_for_retry(job.job_id)
+    assert job.status == expected_resume
+    assert job.error is None
+    assert job.error_stage is None
 
 
 def test_reset_for_retry_noop_when_not_error(manager):

@@ -40,6 +40,20 @@ def _format_ass_time(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{c:02d}"
 
 
+def join_words(words: list[TranscriptWord]) -> str:
+    """Gabung token kata whisper jadi teks biasa (buat preview transkrip).
+
+    Sama seperti generate_ass: kata majemuk berhyphen ("video-on-demand")
+    dipecah whisper jadi token terpisah tanpa spasi sebelum sambungannya.
+    """
+    parts = []
+    for i, w in enumerate(words):
+        if i > 0 and not w.word.startswith("-"):
+            parts.append(" ")
+        parts.append(w.word)
+    return "".join(parts)
+
+
 def generate_ass(
     words: list[TranscriptWord],
     segment_start: float,

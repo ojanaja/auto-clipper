@@ -93,49 +93,59 @@ class PipelineOrchestrator:
             event["resumable"] = resumable
         self._broadcaster.publish(job_id, event)
 
-    def run_analysis(self, job_id: str) -> None:
-        """download -> transcribe -> highlight; status queued -> ... -> ready.
+    def _fail(self, job_id: str, e: Exception) -> None:
+        resumable = _is_resumable(e)
+        self._jobs.transition(job_id, JobStatus.ERROR, error=str(e), resumable=resumable)
+        self._publish(job_id, "error", 0, str(e), resumable=resumable)
 
-        Retry setelah error: tahap yang hasilnya sudah ada (video_path/words)
-        dilewati, jadi user tidak perlu mengulang dari unduh (checkpoint).
-        ponytail: skip pakai truthy check; audio bisu yang sah menghasilkan
-        words=[] akan re-transkrip saat retry (boros tapi bukan bug), upgrade
-        ke flag boolean terpisah kalau kasus ini ternyata sering kejadian.
-
-        Exception dari tahap manapun ditangkap: job jadi error dengan pesan
-        yang bisa dibaca user, tidak pernah crash keluar.
-        """
+    def run_download(self, job_id: str) -> None:
+        """queued -> downloading -> download_ready (jeda preview, nunggu user lanjut)."""
         job = self._jobs.get_job(job_id)
         work_dir = self._work_root / job_id
         work_dir.mkdir(parents=True, exist_ok=True)
-        if job.status == JobStatus.ERROR:
-            self._jobs.reset_for_retry(job_id)
         try:
             self._jobs.transition(job_id, JobStatus.DOWNLOADING)
-            if job.video_path:
-                self._publish(job_id, "downloading", 100, "Video sudah ada, lewati unduh")
-            else:
-                self._publish(job_id, "downloading", 0, "Mengunduh video")
-                meta = self._download(
-                    job.youtube_url,
-                    work_dir,
-                    progress_cb=lambda pct, msg: self._publish(job_id, "downloading", pct, msg),
-                )
-                job.video_path = meta.filepath
+            self._publish(job_id, "downloading", 0, "Mengunduh video")
+            meta = self._download(
+                job.youtube_url,
+                work_dir,
+                progress_cb=lambda pct, msg: self._publish(job_id, "downloading", pct, msg),
+            )
+            job.video_path = meta.filepath
+            job.video_title = meta.title
+            job.video_duration = meta.duration
+            job.video_width = meta.width
+            job.video_height = meta.height
+            job.video_thumbnail = meta.thumbnail
 
-            cfg = self._config_provider()
+            self._jobs.transition(job_id, JobStatus.DOWNLOAD_READY)
+            self._publish(job_id, "download_ready", 100, "Video siap, lanjut ke transkrip")
+        except Exception as e:
+            self._fail(job_id, e)
 
+    def run_transcribe(self, job_id: str) -> None:
+        """download_ready -> transcribing -> transcript_ready (jeda preview)."""
+        job = self._jobs.get_job(job_id)
+        cfg = self._config_provider()
+        try:
             self._jobs.transition(job_id, JobStatus.TRANSCRIBING)
-            if job.words:
-                self._publish(job_id, "transcribing", 100, "Transkrip sudah ada, lewati")
-            else:
-                self._publish(job_id, "transcribing", 0, "Transkripsi audio")
-                job.words = self._transcribe(
-                    job.video_path,
-                    model_size=cfg.whisper_model,
-                    progress_cb=lambda pct, msg: self._publish(job_id, "transcribing", pct, msg),
-                )
+            self._publish(job_id, "transcribing", 0, "Transkripsi audio")
+            job.words = self._transcribe(
+                job.video_path,
+                model_size=cfg.whisper_model,
+                progress_cb=lambda pct, msg: self._publish(job_id, "transcribing", pct, msg),
+            )
 
+            self._jobs.transition(job_id, JobStatus.TRANSCRIPT_READY)
+            self._publish(job_id, "transcript_ready", 100, "Transkrip siap, lanjut ke analisis")
+        except Exception as e:
+            self._fail(job_id, e)
+
+    def run_highlight(self, job_id: str) -> None:
+        """transcript_ready -> analyzing -> ready (segmen kandidat siap dipilih)."""
+        job = self._jobs.get_job(job_id)
+        cfg = self._config_provider()
+        try:
             self._jobs.transition(job_id, JobStatus.ANALYZING)
             self._publish(job_id, "analyzing", 0, "Mencari momen menarik")
             if self._llm_client is None:
@@ -158,9 +168,44 @@ class PipelineOrchestrator:
             self._jobs.transition(job_id, JobStatus.READY)
             self._publish(job_id, "ready", 100, f"{len(job.segments)} segmen kandidat")
         except Exception as e:
-            resumable = _is_resumable(e)
-            self._jobs.transition(job_id, JobStatus.ERROR, error=str(e), resumable=resumable)
-            self._publish(job_id, "error", 0, str(e), resumable=resumable)
+            self._fail(job_id, e)
+
+    # Tahap berikutnya per status job -- dipakai dispatch() buat 3 pemicu:
+    # job baru (QUEUED), retry setelah error (reset_for_retry taruh status
+    # balik ke checkpoint gagal), dan tombol "Lanjutkan" user di tiap jeda
+    # preview (DOWNLOAD_READY/TRANSCRIPT_READY).
+    _NEXT_STAGE = {
+        JobStatus.QUEUED: "run_download",
+        JobStatus.DOWNLOAD_READY: "run_transcribe",
+        JobStatus.TRANSCRIPT_READY: "run_highlight",
+    }
+
+    def dispatch(self, job_id: str) -> None:
+        """Jalankan tahap pipeline berikutnya sesuai status job saat ini."""
+        job = self._jobs.get_job(job_id)
+        method_name = self._NEXT_STAGE.get(job.status)
+        if method_name is not None:
+            getattr(self, method_name)(job_id)
+
+    def run_analysis(self, job_id: str) -> None:
+        """download -> transcribe -> highlight tanpa jeda; status queued -> ... -> ready.
+
+        Dipakai test/skenario batch (bukan API produksi -- itu pakai dispatch()
+        supaya berhenti di tiap jeda preview). Retry setelah error otomatis
+        resume dari checkpoint yang tepat lewat reset_for_retry.
+
+        Exception dari tahap manapun ditangkap: job jadi error dengan pesan
+        yang bisa dibaca user, tidak pernah crash keluar.
+        """
+        job = self._jobs.get_job(job_id)
+        if job.status == JobStatus.ERROR:
+            self._jobs.reset_for_retry(job_id)
+        if job.status == JobStatus.QUEUED:
+            self.run_download(job_id)
+        if job.status == JobStatus.DOWNLOAD_READY:
+            self.run_transcribe(job_id)
+        if job.status == JobStatus.TRANSCRIPT_READY:
+            self.run_highlight(job_id)
 
     def run_render(
         self, job_id: str, segment_ids: list[str], output_dir: Path | None = None

@@ -4,12 +4,22 @@ const WS_BASE = "ws://127.0.0.1:8237";
 const STAGE_LABELS = {
   queued: "Masuk antrian",
   downloading: "Mengunduh video",
+  download_ready: "Video siap",
   transcribing: "Transkripsi audio",
+  transcript_ready: "Transkrip siap",
   analyzing: "Mencari momen menarik",
   ready: "Segmen siap dipilih",
   rendering: "Merender klip",
   done: "Selesai",
   error: "Gagal",
+};
+
+// Jeda preview: step yang sudah pasti "done" begitu stage ini tercapai.
+const STAGE_STEP_DONE_UP_TO = {
+  download_ready: "download",
+  transcript_ready: "transcribe",
+  ready: "analyze",
+  done: "render",
 };
 
 // Tahapan yang ditampilkan sebagai step-tracker, urut sesuai pipeline.
@@ -52,6 +62,14 @@ function setupApp(doc) {
   const progressBar = doc.getElementById("progress-bar");
   const progressMessage = doc.getElementById("progress-message");
   const retryBtn = doc.getElementById("retry-btn");
+  const downloadPreviewSection = doc.getElementById("download-preview-section");
+  const downloadPreviewThumb = doc.getElementById("download-preview-thumb");
+  const downloadPreviewTitle = doc.getElementById("download-preview-title");
+  const downloadPreviewMeta = doc.getElementById("download-preview-meta");
+  const downloadContinueBtn = doc.getElementById("download-continue-btn");
+  const transcriptPreviewSection = doc.getElementById("transcript-preview-section");
+  const transcriptPreviewText = doc.getElementById("transcript-preview-text");
+  const transcriptContinueBtn = doc.getElementById("transcript-continue-btn");
   const segmentsSection = doc.getElementById("segments-section");
   const segmentsEl = doc.getElementById("segments");
   const renderBtn = doc.getElementById("render-btn");
@@ -97,14 +115,11 @@ function setupApp(doc) {
       if (activeStepKey) setStepClass(activeStepKey, "error");
       return;
     }
-    if (stage === "ready") {
-      // Analisis selesai; render belum jalan.
-      for (const s of STEPS) setStepClass(s.key, s.key === "render" ? "pending" : "done");
-      activeStepKey = null;
-      return;
-    }
-    if (stage === "done") {
-      for (const s of STEPS) setStepClass(s.key, "done");
+    const doneUpTo = STAGE_STEP_DONE_UP_TO[stage];
+    if (doneUpTo) {
+      // Jeda preview atau tahap selesai: step sampai doneUpTo "done", sisanya nunggu.
+      const doneIdx = STEPS.findIndex((s) => s.key === doneUpTo);
+      STEPS.forEach((s, i) => setStepClass(s.key, i <= doneIdx ? "done" : "pending"));
       activeStepKey = null;
       return;
     }
@@ -202,6 +217,35 @@ function setupApp(doc) {
     renderSegments(data.segments);
   }
 
+  async function loadDownloadPreview() {
+    const resp = await fetch(`${API_BASE}/jobs/${jobId}`);
+    const data = await resp.json();
+    downloadPreviewThumb.hidden = !data.video_thumbnail;
+    downloadPreviewThumb.src = data.video_thumbnail || "";
+    downloadPreviewTitle.textContent = data.video_title || "(tanpa judul)";
+    const dims =
+      data.video_width && data.video_height ? `${data.video_width}x${data.video_height} • ` : "";
+    downloadPreviewMeta.textContent = `${dims}${formatTime(data.video_duration || 0)}`;
+  }
+
+  async function loadTranscriptPreview() {
+    const resp = await fetch(`${API_BASE}/jobs/${jobId}/transcript`);
+    const data = await resp.json();
+    transcriptPreviewText.textContent = data.text || "(tidak ada suara terdeteksi)";
+  }
+
+  async function continueJob(btn) {
+    btn.disabled = true;
+    try {
+      await fetch(`${API_BASE}/jobs/${jobId}/continue`, { method: "POST" });
+      startTimer();
+      progressBar.value = 0;
+      progressBar.classList.add("indeterminate");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function loadOutput() {
     const resp = await fetch(`${API_BASE}/jobs/${jobId}/output`);
     const data = await resp.json();
@@ -236,9 +280,21 @@ function setupApp(doc) {
       progressBar.classList.toggle("indeterminate", indeterminate);
       // Detail live (mis. "5.0 MB / 15.0 MB" atau "Transkripsi 55%").
       progressMessage.textContent = data.message || "";
-      if (data.stage === "ready" || data.stage === "done" || data.stage === "error") {
+      if (
+        data.stage === "download_ready" ||
+        data.stage === "transcript_ready" ||
+        data.stage === "ready" ||
+        data.stage === "done" ||
+        data.stage === "error"
+      ) {
         stopTimer();
       }
+      // Jeda preview: section cuma tampil persis di stage-nya sendiri, robust
+      // terhadap reconnect WS (data dimuat ulang dari backend, bukan disimpan di sini).
+      downloadPreviewSection.classList.toggle("visible", data.stage === "download_ready");
+      transcriptPreviewSection.classList.toggle("visible", data.stage === "transcript_ready");
+      if (data.stage === "download_ready") loadDownloadPreview();
+      if (data.stage === "transcript_ready") loadTranscriptPreview();
       if (data.stage === "ready") loadSegments();
       if (data.stage === "done") loadOutput();
       // Sembunyikan tombol submit begitu fase download jalan biar user gak
@@ -278,6 +334,8 @@ function setupApp(doc) {
     e.preventDefault();
     submitBtn.disabled = true;
     if (retryBtn) retryBtn.hidden = true;
+    downloadPreviewSection.classList.remove("visible");
+    transcriptPreviewSection.classList.remove("visible");
     try {
       // Backend sidecar (PyInstaller onefile) bisa masih cold-start beberapa
       // detik setelah app dibuka; retry singkat sebelum mengaku gagal supaya
@@ -327,6 +385,9 @@ function setupApp(doc) {
       body: JSON.stringify({ segment_ids: [...selected] }),
     });
   });
+
+  downloadContinueBtn.addEventListener("click", () => continueJob(downloadContinueBtn));
+  transcriptContinueBtn.addEventListener("click", () => continueJob(transcriptContinueBtn));
 
   if (retryBtn) {
     retryBtn.addEventListener("click", async () => {

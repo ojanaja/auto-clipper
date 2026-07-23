@@ -7,6 +7,7 @@ from pipeline.subtitle import (
     _format_ass_time,
     burn_subtitle,
     generate_ass,
+    join_words,
 )
 from pipeline.transcribe import TranscriptWord
 
@@ -39,6 +40,23 @@ SAMPLE_WORDS = [
 )
 def test_format_ass_time(seconds, expected):
     assert _format_ass_time(seconds) == expected
+
+
+# --- join_words ---
+
+
+def test_join_words_plain_sentence():
+    assert join_words(SAMPLE_WORDS) == "Halo semua selamat datang di channel ini"
+
+
+def test_join_words_hyphenated_compound_no_extra_space():
+    words = [
+        TranscriptWord(word="video", start=0.0, end=0.3),
+        TranscriptWord(word="-on", start=0.3, end=0.5),
+        TranscriptWord(word="-demand", start=0.5, end=0.9),
+        TranscriptWord(word="secara", start=0.9, end=1.2),
+    ]
+    assert join_words(words) == "video-on-demand secara"
 
 
 # --- generate_ass ---

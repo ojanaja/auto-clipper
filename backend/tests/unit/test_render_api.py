@@ -35,7 +35,7 @@ def fake_orchestrator(monkeypatch):
         for sid in segment_ids:
             job.clips[sid] = {"status": "done", "progress": 100, "path": f"/out/{sid}.mp4"}
 
-    orch.run_analysis.side_effect = fake_analysis
+    orch.dispatch.side_effect = fake_analysis
     orch.run_render.side_effect = fake_render
     monkeypatch.setattr(app_module, "orchestrator", orch)
     return orch
@@ -49,7 +49,7 @@ def _create(client):
 
 def test_post_jobs_triggers_analysis(client, fake_orchestrator):
     job_id = _create(client)
-    fake_orchestrator.run_analysis.assert_called_once_with(job_id)
+    fake_orchestrator.dispatch.assert_called_once_with(job_id)
     assert client.get(f"/jobs/{job_id}").json()["status"] == "ready"
 
 

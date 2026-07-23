@@ -485,6 +485,69 @@
         margin-top: var(--space-2);
       }
 
+      /* Jeda preview antar-step (download_ready/transcript_ready): sama
+         pola collapse/expand-nya kayak #segments-section. */
+      .collapsible {
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 220ms var(--ease-out),
+          transform 220ms var(--ease-out);
+        display: block;
+        height: 0;
+        overflow: hidden;
+        margin-bottom: 0;
+      }
+
+      .collapsible.visible {
+        opacity: 1;
+        transform: translateY(0);
+        height: auto;
+        margin-bottom: var(--space-5);
+      }
+
+      .video-preview {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+
+      .video-preview img {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: var(--radius);
+        border: 1px solid var(--color-border);
+        background: var(--bg-elevated);
+        flex-shrink: 0;
+      }
+
+      .video-preview-title {
+        font-weight: 600;
+      }
+
+      .video-preview-meta {
+        color: var(--color-muted-fg);
+        font-size: 13px;
+        margin-top: var(--space-1);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .transcript-preview-text {
+        color: var(--color-muted-fg);
+        font-size: 14px;
+        line-height: 1.6;
+        max-height: 200px;
+        overflow-y: auto;
+        background: var(--bg-elevated);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+        white-space: pre-wrap;
+      }
+
       .score {
         display: inline-flex;
         align-items: center;
@@ -808,6 +871,28 @@
       <button id="retry-btn" class="secondary" type="button" hidden>Coba Lagi</button>
     </section>
 
+    <section id="download-preview-section" class="collapsible" aria-live="polite">
+      <div class="section-header">
+        <h2>Video siap diunduh</h2>
+      </div>
+      <div class="video-preview">
+        <img id="download-preview-thumb" alt="" />
+        <div>
+          <p id="download-preview-title" class="video-preview-title"></p>
+          <p id="download-preview-meta" class="video-preview-meta"></p>
+        </div>
+      </div>
+      <button id="download-continue-btn" type="button">Lanjutkan ke Transkrip</button>
+    </section>
+
+    <section id="transcript-preview-section" class="collapsible" aria-live="polite">
+      <div class="section-header">
+        <h2>Transkrip siap</h2>
+      </div>
+      <p id="transcript-preview-text" class="transcript-preview-text"></p>
+      <button id="transcript-continue-btn" type="button">Lanjutkan ke Analisis AI</button>
+    </section>
+
     <section id="segments-section" aria-live="polite">
       <div class="section-header">
         <h2>Segmen kandidat</h2>
@@ -878,7 +963,12 @@
             <div class="field full">
               <label for="cfg-output-dir">Folder Output</label>
               <div class="output-dir">
-                <input id="cfg-output-dir" name="output_dir" type="text" placeholder="Default: ~/Movies/AutoClip" />
+                <input
+                  id="cfg-output-dir"
+                  name="output_dir"
+                  type="text"
+                  placeholder="Default: ~/Movies/AutoClip"
+                />
                 <button id="cfg-browse-dir" class="secondary" type="button">Pilih...</button>
               </div>
             </div>
@@ -886,29 +976,54 @@
 
           <fieldset>
             <legend>Subtitle</legend>
-            <div class="field" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+            <div
+              class="field"
+              style="flex-direction: row; align-items: center; gap: var(--space-2)"
+            >
               <input id="cfg-subtitle-enabled" name="subtitle_enabled" type="checkbox" />
-              <label for="cfg-subtitle-enabled" style="margin: 0;">Aktifkan subtitle</label>
+              <label for="cfg-subtitle-enabled" style="margin: 0">Aktifkan subtitle</label>
             </div>
             <div class="field">
               <label for="cfg-subtitle-font-size">Ukuran Font Subtitle</label>
-              <input id="cfg-subtitle-font-size" name="subtitle_font_size" type="number" min="24" max="160" />
+              <input
+                id="cfg-subtitle-font-size"
+                name="subtitle_font_size"
+                type="number"
+                min="24"
+                max="160"
+              />
             </div>
           </fieldset>
 
           <fieldset>
             <legend>Face Tracking</legend>
-            <div class="field" style="flex-direction: row; align-items: center; gap: var(--space-2);">
+            <div
+              class="field"
+              style="flex-direction: row; align-items: center; gap: var(--space-2)"
+            >
               <input id="cfg-face-tracking-enabled" name="face_tracking_enabled" type="checkbox" />
-              <label for="cfg-face-tracking-enabled" style="margin: 0;">Auto Face-Tracking</label>
+              <label for="cfg-face-tracking-enabled" style="margin: 0">Auto Face-Tracking</label>
             </div>
             <div class="field">
               <label for="cfg-face-sample-fps">Sampling FPS Wajah</label>
-              <input id="cfg-face-sample-fps" name="face_sample_fps" type="number" min="1" max="5" />
+              <input
+                id="cfg-face-sample-fps"
+                name="face_sample_fps"
+                type="number"
+                min="1"
+                max="5"
+              />
             </div>
             <div class="field">
               <label for="cfg-speaker-min-dwell">Min. Dwell Speaker (detik)</label>
-              <input id="cfg-speaker-min-dwell" name="speaker_min_dwell_s" type="number" min="0" max="5" step="0.1" />
+              <input
+                id="cfg-speaker-min-dwell"
+                name="speaker_min_dwell_s"
+                type="number"
+                min="0"
+                max="5"
+                step="0.1"
+              />
             </div>
           </fieldset>
 
@@ -943,21 +1058,36 @@
             </div>
             <div class="field full">
               <label for="cfg-llm-model">Model LLM (kosong = default)</label>
-              <input id="cfg-llm-model" name="llm_model" type="text" placeholder="gemini-2.5-flash / claude-opus-4-8" />
+              <input
+                id="cfg-llm-model"
+                name="llm_model"
+                type="text"
+                placeholder="gemini-2.5-flash / claude-opus-4-8"
+              />
             </div>
             <div class="field full key-field">
               <label for="cfg-gemini-key">
                 Gemini API Key
                 <span id="gemini-key-set" class="key-set" hidden>• tersimpan</span>
               </label>
-              <input id="cfg-gemini-key" name="gemini_api_key" type="password" placeholder="Kosongkan jika tidak ingin mengubah" />
+              <input
+                id="cfg-gemini-key"
+                name="gemini_api_key"
+                type="password"
+                placeholder="Kosongkan jika tidak ingin mengubah"
+              />
             </div>
             <div class="field full key-field">
               <label for="cfg-anthropic-key">
                 Anthropic API Key
                 <span id="anthropic-key-set" class="key-set" hidden>• tersimpan</span>
               </label>
-              <input id="cfg-anthropic-key" name="anthropic_api_key" type="password" placeholder="Kosongkan jika tidak ingin mengubah" />
+              <input
+                id="cfg-anthropic-key"
+                name="anthropic_api_key"
+                type="password"
+                placeholder="Kosongkan jika tidak ingin mengubah"
+              />
             </div>
           </fieldset>
 

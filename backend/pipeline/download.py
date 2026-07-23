@@ -30,6 +30,7 @@ class VideoMetadata:
     width: int | None
     height: int | None
     filepath: str
+    thumbnail: str | None = None
 
 
 def validate_youtube_url(url: str) -> str:
@@ -134,4 +135,5 @@ def download_video(url: str, dest_dir: Path, progress_cb=None) -> VideoMetadata:
         width=info.get("width"),
         height=info.get("height"),
         filepath=filepath,
+        thumbnail=info.get("thumbnail"),
     )

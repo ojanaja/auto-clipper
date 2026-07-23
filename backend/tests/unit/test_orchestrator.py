@@ -22,6 +22,7 @@ FAKE_META = SimpleNamespace(
     width=1920,
     height=1080,
     filepath="/tmp/work/dQw4w9WgXcQ.mp4",
+    thumbnail="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
 )
 FAKE_WORDS = [TranscriptWord(word="halo", start=1.0, end=1.5)]
 FAKE_SEGMENTS = [
@@ -58,7 +59,94 @@ def _orchestrator(manager, broadcaster, deps):
     return PipelineOrchestrator(manager, broadcaster, **deps)
 
 
-# --- run_analysis ---
+# --- checkpoint per-tahap (run_download/run_transcribe/run_highlight/dispatch) ---
+
+
+def test_run_download_stops_at_download_ready_with_preview_fields(manager, broadcaster, deps):
+    job = manager.create_job(URL)
+    _orchestrator(manager, broadcaster, deps).run_download(job.job_id)
+
+    assert job.status == JobStatus.DOWNLOAD_READY
+    assert job.video_path == FAKE_META.filepath
+    assert job.video_title == FAKE_META.title
+    assert job.video_duration == FAKE_META.duration
+    assert job.video_thumbnail == FAKE_META.thumbnail
+    deps["transcribe_fn"].assert_not_called()
+    stages = [c.args[1]["stage"] for c in broadcaster.publish.call_args_list]
+    assert stages[-1] == "download_ready"
+
+
+def test_run_transcribe_stops_at_transcript_ready(manager, broadcaster, deps):
+    job = manager.create_job(URL)
+    orch = _orchestrator(manager, broadcaster, deps)
+    orch.run_download(job.job_id)
+
+    orch.run_transcribe(job.job_id)
+
+    assert job.status == JobStatus.TRANSCRIPT_READY
+    assert job.words == FAKE_WORDS
+    deps["highlight_fn"].assert_not_called()
+    stages = [c.args[1]["stage"] for c in broadcaster.publish.call_args_list]
+    assert stages[-1] == "transcript_ready"
+
+
+def test_run_highlight_reaches_ready(manager, broadcaster, deps):
+    job = manager.create_job(URL)
+    orch = _orchestrator(manager, broadcaster, deps)
+    orch.run_download(job.job_id)
+    orch.run_transcribe(job.job_id)
+
+    orch.run_highlight(job.job_id)
+
+    assert job.status == JobStatus.READY
+    assert job.segments == FAKE_SEGMENTS
+
+
+def test_dispatch_runs_next_stage_per_status(manager, broadcaster, deps):
+    job = manager.create_job(URL)
+    orch = _orchestrator(manager, broadcaster, deps)
+
+    orch.dispatch(job.job_id)  # QUEUED -> download
+    assert job.status == JobStatus.DOWNLOAD_READY
+
+    orch.dispatch(job.job_id)  # DOWNLOAD_READY -> transcribe
+    assert job.status == JobStatus.TRANSCRIPT_READY
+
+    orch.dispatch(job.job_id)  # TRANSCRIPT_READY -> highlight
+    assert job.status == JobStatus.READY
+
+
+def test_dispatch_noop_on_terminal_or_processing_status(manager, broadcaster, deps):
+    job = manager.create_job(URL)
+    orch = _orchestrator(manager, broadcaster, deps)
+    job.status = JobStatus.READY
+
+    orch.dispatch(job.job_id)  # tidak ada tahap berikutnya buat READY
+
+    assert job.status == JobStatus.READY
+    deps["download_fn"].assert_not_called()
+
+
+def test_dispatch_after_retry_resumes_only_failed_stage(manager, broadcaster, deps):
+    # Gagal di transkrip; retry harus dispatch ke run_transcribe saja (video
+    # yang sudah diunduh tidak diulang), bukan mulai dari run_download.
+    deps["transcribe_fn"].side_effect = RuntimeError("model crash")
+    job = manager.create_job(URL)
+    orch = _orchestrator(manager, broadcaster, deps)
+    orch.dispatch(job.job_id)  # download
+    orch.dispatch(job.job_id)  # transcribe -> error
+    assert job.status == JobStatus.ERROR
+
+    manager.reset_for_retry(job.job_id)
+    deps["transcribe_fn"].side_effect = None
+    deps["transcribe_fn"].return_value = FAKE_WORDS
+    orch.dispatch(job.job_id)
+
+    assert job.status == JobStatus.TRANSCRIPT_READY
+    deps["download_fn"].assert_called_once()
+
+
+# --- run_analysis (batch tanpa jeda, dipakai test/skenario CLI) ---
 
 
 def test_analysis_calls_pipeline_in_order_and_stores_results(manager, broadcaster, deps):
