@@ -241,6 +241,11 @@ function setupApp(doc) {
       }
       if (data.stage === "ready") loadSegments();
       if (data.stage === "done") loadOutput();
+      // Sembunyikan tombol submit begitu fase download jalan biar user gak
+      // bisa klik ulang & nabrak job yang lagi proses; balikin kalau error
+      // (termasuk non-resumable) biar bisa submit URL baru.
+      if (data.stage === "downloading") submitBtn.hidden = true;
+      if (data.stage === "error") submitBtn.hidden = false;
       // Retry checkpoint cuma untuk error tahap analisis (sebelum segmen tampil)
       // yang resumable (bukan URL invalid/video privat/API key ditolak -- itu
       // pasti gagal lagi tanpa user memperbaiki sesuatu). Error render sudah

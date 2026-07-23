@@ -1,6 +1,7 @@
 import re
 import subprocess
 import sys
+import threading
 import uuid
 from pathlib import Path
 
@@ -191,6 +192,17 @@ def render_segment(
 
     duration = segment.end - segment.start
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    # ffmpeg bisa nulis banyak ke stderr (warning libass/filter). Kalau cuma
+    # stdout yang dibaca, buffer pipe stderr penuh -> ffmpeg blok nulis ->
+    # seluruh proses freeze ("stuck" di 0%). Drain stderr di thread terpisah
+    # biar gak deadlock.
+    stderr_lines: list[str] = []
+    stderr_thread = threading.Thread(
+        target=lambda: stderr_lines.extend(proc.stderr), daemon=True
+    )
+    stderr_thread.start()
+
     for line in proc.stdout:
         if line.strip() == "progress=end":
             progress_cb(100, "Render 100%")
@@ -199,9 +211,9 @@ def render_segment(
         if pct is not None:
             progress_cb(pct, f"Render {pct}%")
     returncode = proc.wait()
+    stderr_thread.join(timeout=5)
     if returncode != 0:
-        stderr = proc.stderr.read()
-        err = f"ffmpeg gagal render segmen.\nSTDERR:\n{stderr}"
+        err = f"ffmpeg gagal render segmen.\nSTDERR:\n{''.join(stderr_lines)}"
         print(err, file=sys.stderr, flush=True)
         raise RenderError(err)
     return output_path

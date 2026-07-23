@@ -143,7 +143,7 @@ def _fake_popen(mocker, lines, returncode=0):
     mocker.patch("pipeline.render._ass_filter_available", return_value=True)
     proc = mocker.MagicMock()
     proc.stdout = iter(lines)
-    proc.stderr.read.return_value = "" if returncode == 0 else "encoder error"
+    proc.stderr = iter([] if returncode == 0 else ["encoder error\n"])
     proc.wait.return_value = returncode
     proc.returncode = returncode
     return mocker.patch("pipeline.render.subprocess.Popen", return_value=proc)
