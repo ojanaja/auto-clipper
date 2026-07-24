@@ -88,6 +88,29 @@ app.whenReady().then(() => {
     });
     return result.canceled ? null : result.filePaths[0];
   });
+  ipcMain.handle("import-customization-preset", async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(win, {
+      properties: ["openFile"],
+      filters: [{ name: "Preset Kustomisasi (JSON)", extensions: ["json"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    try {
+      return JSON.parse(fs.readFileSync(result.filePaths[0], "utf-8"));
+    } catch {
+      throw new Error("File preset tidak valid (bukan JSON yang benar)");
+    }
+  });
+  ipcMain.handle("export-customization-preset", async (_event, data) => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showSaveDialog(win, {
+      defaultPath: "autoclip-preset.json",
+      filters: [{ name: "Preset Kustomisasi (JSON)", extensions: ["json"] }],
+    });
+    if (result.canceled || !result.filePath) return false;
+    fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), "utf-8");
+    return true;
+  });
   spawnBackend();
   createWindow();
 

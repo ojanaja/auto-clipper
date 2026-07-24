@@ -638,6 +638,156 @@
         border-radius: var(--radius);
       }
 
+      .tabs {
+        display: flex;
+        gap: var(--space-1);
+        border-bottom: 1px solid var(--color-border);
+        margin-bottom: var(--space-5);
+        overflow-x: auto;
+      }
+
+      .tab-btn {
+        background: transparent;
+        color: var(--color-muted-fg);
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        min-height: 40px;
+        padding: var(--space-2) var(--space-4);
+        font-size: 14px;
+        font-weight: 600;
+        border-bottom: 2px solid transparent;
+        white-space: nowrap;
+      }
+
+      .tab-btn:hover:not(:disabled) {
+        color: var(--color-foreground);
+        background: transparent;
+        transform: none;
+      }
+
+      .tab-btn.active {
+        color: var(--color-foreground);
+        border-bottom-color: var(--color-primary);
+      }
+
+      .tab-panel[hidden] {
+        display: none;
+      }
+
+      .kustom-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-bottom: var(--space-3);
+      }
+
+      .kustom-master-toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .kustom-master-toggle input {
+        accent-color: var(--color-primary);
+        width: 18px;
+        height: 18px;
+      }
+
+      .kustom-actions {
+        display: flex;
+        gap: var(--space-2);
+      }
+
+      .kustom-actions button {
+        min-height: 36px;
+        padding: var(--space-2) var(--space-3);
+        font-size: 13px;
+      }
+
+      #kustom-status {
+        font-size: 13px;
+        color: var(--color-muted-fg);
+        margin-bottom: var(--space-3);
+      }
+
+      #kustom-status.success {
+        color: var(--color-success);
+      }
+
+      #kustom-status.error {
+        color: var(--color-destructive);
+      }
+
+      .kustom-section {
+        background: var(--bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        margin-bottom: var(--space-3);
+      }
+
+      .kustom-section summary {
+        cursor: pointer;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        list-style: none;
+      }
+
+      .kustom-section summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .kustom-section summary::before {
+        content: "\25B8";
+        color: var(--color-muted-fg);
+        font-size: 12px;
+        transition: transform 180ms var(--ease-out);
+      }
+
+      .kustom-section[open] summary::before {
+        transform: rotate(90deg);
+      }
+
+      .kustom-section .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--color-muted);
+        flex: none;
+      }
+
+      .kustom-section .dot.on {
+        background: var(--color-success);
+      }
+
+      .kustom-section-body {
+        padding-top: var(--space-3);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+
+      .kustom-check {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        cursor: pointer;
+        font-weight: 500;
+      }
+
+      .kustom-check input {
+        accent-color: var(--color-primary);
+        width: 18px;
+        height: 18px;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
@@ -843,86 +993,209 @@
     </div>
     <p class="subtitle">Video YouTube panjang &rarr; klip vertikal siap upload</p>
 
-    <section>
-      <form id="job-form" aria-label="Buat job baru">
-        <div class="field">
-          <label for="url-input">Link YouTube</label>
-          <input
-            id="url-input"
-            type="url"
-            placeholder="Tempel link YouTube di sini"
-            required
-            autocomplete="off"
-          />
-          <span class="helper">Tempel URL video YouTube yang ingin dijadikan klip vertikal.</span>
+    <nav class="tabs" role="tablist" aria-label="Navigasi utama">
+      <button
+        class="tab-btn active"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        aria-controls="tab-klip"
+        data-tab="klip"
+      >
+        Klip
+      </button>
+      <button
+        class="tab-btn"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="tab-kustomisasi"
+        data-tab="kustomisasi"
+      >
+        Kustomisasi
+      </button>
+      <button
+        class="tab-btn"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="tab-thumbnail"
+        data-tab="thumbnail"
+      >
+        Thumbnail
+      </button>
+      <button
+        class="tab-btn"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="tab-autopost"
+        data-tab="autopost"
+      >
+        Autopost
+      </button>
+    </nav>
+
+    <div id="tab-klip" class="tab-panel" role="tabpanel">
+      <section>
+        <form id="job-form" aria-label="Buat job baru">
+          <div class="field">
+            <label for="url-input">Link YouTube</label>
+            <input
+              id="url-input"
+              type="url"
+              placeholder="Tempel link YouTube di sini"
+              required
+              autocomplete="off"
+            />
+            <span class="helper">Tempel URL video YouTube yang ingin dijadikan klip vertikal.</span>
+          </div>
+          <button id="submit-btn" type="submit">Ambil Transkrip</button>
+        </form>
+      </section>
+
+      <section id="status-section" aria-live="polite">
+        <div id="status-header">
+          <p id="status-text"></p>
+          <span id="elapsed" class="elapsed" aria-label="Waktu berjalan"></span>
         </div>
-        <button id="submit-btn" type="submit">Ambil Transkrip</button>
-      </form>
-    </section>
+        <ol id="steps" class="steps" aria-label="Tahapan proses"></ol>
+        <progress id="progress-bar" max="100" value="0"></progress>
+        <p id="progress-message"></p>
+        <button id="retry-btn" class="secondary" type="button" hidden>Coba Lagi</button>
+      </section>
 
-    <section id="status-section" aria-live="polite">
-      <div id="status-header">
-        <p id="status-text"></p>
-        <span id="elapsed" class="elapsed" aria-label="Waktu berjalan"></span>
-      </div>
-      <ol id="steps" class="steps" aria-label="Tahapan proses"></ol>
-      <progress id="progress-bar" max="100" value="0"></progress>
-      <p id="progress-message"></p>
-      <button id="retry-btn" class="secondary" type="button" hidden>Coba Lagi</button>
-    </section>
+      <section id="download-preview-section" class="collapsible" aria-live="polite">
+        <div class="section-header">
+          <h2>Video siap diunduh</h2>
+        </div>
+        <div class="video-preview">
+          <img id="download-preview-thumb" alt="" />
+          <div>
+            <p id="download-preview-title" class="video-preview-title"></p>
+            <p id="download-preview-meta" class="video-preview-meta"></p>
+          </div>
+        </div>
+        <button id="download-continue-btn" type="button">Lanjutkan ke Transkrip</button>
+      </section>
 
-    <section id="download-preview-section" class="collapsible" aria-live="polite">
-      <div class="section-header">
-        <h2>Video siap diunduh</h2>
-      </div>
-      <div class="video-preview">
-        <img id="download-preview-thumb" alt="" />
-        <div>
-          <p id="download-preview-title" class="video-preview-title"></p>
-          <p id="download-preview-meta" class="video-preview-meta"></p>
+      <section id="transcript-preview-section" class="collapsible" aria-live="polite">
+        <div class="section-header">
+          <h2>Transkrip siap</h2>
+        </div>
+        <p id="transcript-preview-text" class="transcript-preview-text"></p>
+        <button id="transcript-continue-btn" type="button">Lanjutkan ke Analisis AI</button>
+      </section>
+
+      <section id="segments-section" aria-live="polite">
+        <div class="section-header">
+          <h2>Segmen kandidat</h2>
+          <div>
+            <button id="select-all-btn" class="link" type="button">Pilih semua</button>
+            <button id="clear-btn" class="link" type="button">Batal pilih</button>
+          </div>
+        </div>
+        <div id="segments"></div>
+        <button id="render-btn" disabled>Render Terpilih</button>
+      </section>
+
+      <section id="output-section" aria-live="polite">
+        <div class="success-banner">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            aria-hidden="true"
+          >
+            <path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Render selesai &mdash; klip siap dibuka</span>
+        </div>
+        <ul id="files-list"></ul>
+        <button id="open-folder-btn" class="secondary" type="button">Buka Folder Output</button>
+      </section>
+    </div>
+
+    <div id="tab-kustomisasi" class="tab-panel" role="tabpanel" hidden>
+      <div class="kustom-toolbar">
+        <label class="kustom-master-toggle">
+          <input type="checkbox" id="kustom-enabled" />
+          Aktifkan Kustomisasi
+        </label>
+        <div class="kustom-actions">
+          <button id="kustom-import-btn" class="secondary" type="button">Impor</button>
+          <button id="kustom-export-btn" class="secondary" type="button">Ekspor</button>
+          <button id="kustom-reset-btn" class="secondary" type="button">Reset</button>
         </div>
       </div>
-      <button id="download-continue-btn" type="button">Lanjutkan ke Transkrip</button>
-    </section>
+      <p id="kustom-status" role="status"></p>
 
-    <section id="transcript-preview-section" class="collapsible" aria-live="polite">
-      <div class="section-header">
-        <h2>Transkrip siap</h2>
-      </div>
-      <p id="transcript-preview-text" class="transcript-preview-text"></p>
-      <button id="transcript-continue-btn" type="button">Lanjutkan ke Analisis AI</button>
-    </section>
-
-    <section id="segments-section" aria-live="polite">
-      <div class="section-header">
-        <h2>Segmen kandidat</h2>
-        <div>
-          <button id="select-all-btn" class="link" type="button">Pilih semua</button>
-          <button id="clear-btn" class="link" type="button">Batal pilih</button>
+      <details class="kustom-section" open>
+        <summary><span class="dot" id="kustom-dot-subtitle"></span> Subtitle</summary>
+        <div class="kustom-section-body">
+          <label class="kustom-check">
+            <input type="checkbox" id="kustom-subtitle-enabled" />
+            Aktifkan Subtitle
+          </label>
+          <p class="helper">Template &amp; pengaturan detail hadir di fase berikutnya.</p>
         </div>
-      </div>
-      <div id="segments"></div>
-      <button id="render-btn" disabled>Render Terpilih</button>
-    </section>
+      </details>
 
-    <section id="output-section" aria-live="polite">
-      <div class="success-banner">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          aria-hidden="true"
-        >
-          <path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>Render selesai &mdash; klip siap dibuka</span>
-      </div>
-      <ul id="files-list"></ul>
-      <button id="open-folder-btn" class="secondary" type="button">Buka Folder Output</button>
-    </section>
+      <details class="kustom-section">
+        <summary><span class="dot" id="kustom-dot-overlay_sumber"></span> Overlay Sumber</summary>
+        <div class="kustom-section-body">
+          <label class="kustom-check">
+            <input type="checkbox" id="kustom-overlay_sumber-enabled" />
+            Aktifkan Overlay Sumber
+          </label>
+          <p class="helper">Pengaturan detail hadir di fase berikutnya.</p>
+        </div>
+      </details>
+
+      <details class="kustom-section">
+        <summary><span class="dot" id="kustom-dot-watermark"></span> Watermark</summary>
+        <div class="kustom-section-body">
+          <label class="kustom-check">
+            <input type="checkbox" id="kustom-watermark-enabled" />
+            Aktifkan Watermark
+          </label>
+          <p class="helper">Pengaturan detail hadir di fase berikutnya.</p>
+        </div>
+      </details>
+
+      <details class="kustom-section">
+        <summary><span class="dot" id="kustom-dot-overlay_gambar"></span> Overlay Gambar</summary>
+        <div class="kustom-section-body">
+          <label class="kustom-check">
+            <input type="checkbox" id="kustom-overlay_gambar-enabled" />
+            Aktifkan Overlay Gambar
+          </label>
+          <p class="helper">Pengaturan detail hadir di fase berikutnya.</p>
+        </div>
+      </details>
+
+      <details class="kustom-section">
+        <summary><span class="dot" id="kustom-dot-color_grade"></span> Color Grade</summary>
+        <div class="kustom-section-body">
+          <label class="kustom-check">
+            <input type="checkbox" id="kustom-color_grade-enabled" />
+            Aktifkan Color Grade
+          </label>
+          <p class="helper">Pengaturan detail hadir di fase berikutnya.</p>
+        </div>
+      </details>
+    </div>
+
+    <div id="tab-thumbnail" class="tab-panel" role="tabpanel" hidden>
+      <p class="empty-state">Fitur Thumbnail generator hadir di Fase 2 roadmap.</p>
+    </div>
+
+    <div id="tab-autopost" class="tab-panel" role="tabpanel" hidden>
+      <p class="empty-state">Fitur Autopost hadir di Fase 4 roadmap.</p>
+    </div>
 
     <section id="settings-section" class="modal" aria-label="Pengaturan" hidden>
       <div class="modal-backdrop" id="settings-backdrop"></div>

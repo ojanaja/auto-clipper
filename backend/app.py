@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from config import AppConfig, ConfigError, load_config, resolve_output_dir, save_config
+from customization import CustomizationConfig, load_customization, save_customization
 from job_manager import JobManager, JobNotFoundError, JobStatus
 from orchestrator import PipelineOrchestrator
 from pipeline.subtitle import join_words
@@ -33,6 +34,24 @@ class CreateJobRequest(BaseModel):
 
 class RenderRequest(BaseModel):
     segment_ids: list[str] = Field(min_length=1)
+
+
+_CUSTOMIZATION_SECTIONS = (
+    "subtitle",
+    "overlay_sumber",
+    "watermark",
+    "overlay_gambar",
+    "color_grade",
+)
+
+
+class CustomizationUpdate(BaseModel):
+    enabled: bool | None = None
+    subtitle: dict | None = None
+    overlay_sumber: dict | None = None
+    watermark: dict | None = None
+    overlay_gambar: dict | None = None
+    color_grade: dict | None = None
 
 
 class ConfigUpdate(BaseModel):
@@ -228,6 +247,37 @@ def update_config(update: ConfigUpdate):
 
     save_config(new_cfg)
     return new_cfg.to_public_dict()
+
+
+@app.get("/customization")
+def get_customization():
+    return load_customization().to_dict()
+
+
+@app.put("/customization")
+def update_customization(update: CustomizationUpdate):
+    """Update preset kustomisasi (tab Kustomisasi). Merge per-section (shallow)
+    supaya UI bisa update satu field section tanpa kirim ulang section penuh;
+    juga dipakai jalur Impor (payload = hasil Ekspor, section-nya sudah penuh)."""
+    cfg = load_customization()
+    current = cfg.to_dict()
+    update_dict = update.model_dump(exclude_unset=True)
+
+    merged = {**current, **update_dict}
+    for name in _CUSTOMIZATION_SECTIONS:
+        if update_dict.get(name) is not None:
+            merged[name] = {**current[name], **update_dict[name]}
+
+    new_cfg = CustomizationConfig.from_dict(merged)
+    save_customization(new_cfg)
+    return new_cfg.to_dict()
+
+
+@app.post("/customization/reset")
+def reset_customization():
+    cfg = CustomizationConfig()
+    save_customization(cfg)
+    return cfg.to_dict()
 
 
 @app.websocket("/ws/jobs/{job_id}")

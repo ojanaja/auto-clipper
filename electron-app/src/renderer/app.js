@@ -422,6 +422,11 @@ function setupApp(doc) {
   if (settingsApi && (!win.__AUTOCLIP_TEST__ || win.__AUTOCLIP_FORCE_API_KEY_CHECK__)) {
     settingsApi.checkApiKey();
   }
+
+  const customizationApi = setupCustomization(doc);
+  setupTabs(doc, (tab) => {
+    if (tab === "kustomisasi" && customizationApi) customizationApi.load();
+  });
 }
 
 if (typeof module !== "undefined") {
@@ -621,4 +626,162 @@ function setupSettings(doc) {
   }
 
   return { checkApiKey };
+}
+
+function setupTabs(doc, onActivate) {
+  const buttons = [...doc.querySelectorAll(".tab-btn")];
+  if (buttons.length === 0) return null;
+
+  function activate(tab) {
+    buttons.forEach((btn) => {
+      const isActive = btn.dataset.tab === tab;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-selected", String(isActive));
+    });
+    buttons.forEach((btn) => {
+      const panel = doc.getElementById(`tab-${btn.dataset.tab}`);
+      if (panel) panel.hidden = btn.dataset.tab !== tab;
+    });
+    if (onActivate) onActivate(tab);
+  }
+
+  buttons.forEach((btn) => btn.addEventListener("click", () => activate(btn.dataset.tab)));
+  return { activate };
+}
+
+// Section kustomisasi yang sudah punya kerangka di Fase 1a (cuma flag enabled;
+// field detail per section menyusul di Fase 1b-1e). Nama harus sama persis
+// dengan key section di backend (customization.py) supaya id elemen & payload cocok.
+const CUSTOMIZATION_SECTIONS = [
+  "subtitle",
+  "overlay_sumber",
+  "watermark",
+  "overlay_gambar",
+  "color_grade",
+];
+
+function setupCustomization(doc) {
+  const enabledCheckbox = doc.getElementById("kustom-enabled");
+  const statusEl = doc.getElementById("kustom-status");
+  const importBtn = doc.getElementById("kustom-import-btn");
+  const exportBtn = doc.getElementById("kustom-export-btn");
+  const resetBtn = doc.getElementById("kustom-reset-btn");
+
+  if (!enabledCheckbox) return null;
+
+  function setStatus(text, type = "") {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.className = type;
+  }
+
+  function populate(cfg) {
+    enabledCheckbox.checked = Boolean(cfg.enabled);
+    for (const name of CUSTOMIZATION_SECTIONS) {
+      const checkbox = doc.getElementById(`kustom-${name}-enabled`);
+      const dot = doc.getElementById(`kustom-dot-${name}`);
+      const on = Boolean(cfg[name] && cfg[name].enabled);
+      if (checkbox) checkbox.checked = on;
+      if (dot) dot.classList.toggle("on", on);
+    }
+  }
+
+  async function load() {
+    try {
+      const resp = await fetch(`${API_BASE}/customization`);
+      if (!resp.ok) throw new Error("gagal memuat");
+      populate(await resp.json());
+    } catch {
+      setStatus("Gagal memuat kustomisasi", "error");
+    }
+  }
+
+  async function update(payload) {
+    const resp = await fetch(`${API_BASE}/customization`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error("gagal menyimpan");
+    populate(await resp.json());
+  }
+
+  enabledCheckbox.addEventListener("change", async () => {
+    try {
+      await update({ enabled: enabledCheckbox.checked });
+      setStatus("Tersimpan", "success");
+    } catch {
+      setStatus("Gagal menyimpan", "error");
+    }
+  });
+
+  for (const name of CUSTOMIZATION_SECTIONS) {
+    const checkbox = doc.getElementById(`kustom-${name}-enabled`);
+    if (!checkbox) continue;
+    checkbox.addEventListener("change", async () => {
+      try {
+        await update({ [name]: { enabled: checkbox.checked } });
+        setStatus("Tersimpan", "success");
+      } catch {
+        setStatus("Gagal menyimpan", "error");
+      }
+    });
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener("click", async () => {
+      if (
+        typeof window === "undefined" ||
+        !window.autoclip ||
+        !window.autoclip.importCustomizationPreset
+      ) {
+        setStatus("Impor preset tidak tersedia", "error");
+        return;
+      }
+      try {
+        const data = await window.autoclip.importCustomizationPreset();
+        if (!data) return; // dialog dibatalkan
+        await update(data);
+        setStatus("Preset diimpor", "success");
+      } catch (err) {
+        setStatus(err.message || "Gagal mengimpor preset", "error");
+      }
+    });
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", async () => {
+      if (
+        typeof window === "undefined" ||
+        !window.autoclip ||
+        !window.autoclip.exportCustomizationPreset
+      ) {
+        setStatus("Ekspor preset tidak tersedia", "error");
+        return;
+      }
+      try {
+        const resp = await fetch(`${API_BASE}/customization`);
+        const data = await resp.json();
+        const saved = await window.autoclip.exportCustomizationPreset(data);
+        if (saved) setStatus("Preset diekspor", "success");
+      } catch {
+        setStatus("Gagal mengekspor preset", "error");
+      }
+    });
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/customization/reset`, { method: "POST" });
+        if (!resp.ok) throw new Error("gagal reset");
+        populate(await resp.json());
+        setStatus("Direset ke default", "success");
+      } catch {
+        setStatus("Gagal mereset", "error");
+      }
+    });
+  }
+
+  return { load };
 }

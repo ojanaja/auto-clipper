@@ -9,6 +9,15 @@ const SEGMENTS = {
   ],
 };
 
+const CUSTOM_DEFAULT = {
+  enabled: false,
+  subtitle: { enabled: true },
+  overlay_sumber: { enabled: false },
+  watermark: { enabled: false },
+  overlay_gambar: { enabled: false },
+  color_grade: { enabled: false },
+};
+
 function flush() {
   return new Promise((r) => setTimeout(r, 0));
 }
@@ -583,5 +592,160 @@ describe("onboarding: wajib isi API key", () => {
 
     expect(jobForm).not.toHaveAttribute("hidden");
     expect(section).not.toHaveClass("visible");
+  });
+});
+
+describe("tab navigasi utama", () => {
+  test("Klip adalah tab aktif default, tab lain tersembunyi", () => {
+    loadApp();
+    expect(document.getElementById("tab-klip")).not.toHaveAttribute("hidden");
+    expect(document.getElementById("tab-kustomisasi")).toHaveAttribute("hidden");
+    expect(document.getElementById("tab-thumbnail")).toHaveAttribute("hidden");
+    expect(document.getElementById("tab-autopost")).toHaveAttribute("hidden");
+  });
+
+  test("klik tab Kustomisasi menampilkan panelnya & menyembunyikan Klip", async () => {
+    mockFetchQueue([CUSTOM_DEFAULT]);
+    loadApp();
+
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    expect(document.getElementById("tab-kustomisasi")).not.toHaveAttribute("hidden");
+    expect(document.getElementById("tab-klip")).toHaveAttribute("hidden");
+    expect(screen.getByRole("tab", { name: /kustomisasi/i })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
+  test("tab Thumbnail & Autopost tampil sebagai placeholder Fase 2/4", async () => {
+    loadApp();
+
+    await userEvent.click(screen.getByRole("tab", { name: /thumbnail/i }));
+    expect(document.getElementById("tab-thumbnail")).not.toHaveAttribute("hidden");
+    expect(screen.getByText(/fase 2/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: /autopost/i }));
+    expect(document.getElementById("tab-autopost")).not.toHaveAttribute("hidden");
+    expect(screen.getByText(/fase 4/i)).toBeInTheDocument();
+  });
+});
+
+describe("tab Kustomisasi: preset kerangka (Fase 1a)", () => {
+  test("membuka tab memuat config dari GET /customization", async () => {
+    mockFetchQueue([{ ...CUSTOM_DEFAULT, enabled: true, watermark: { enabled: true } }]);
+    loadApp();
+
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    expect(document.getElementById("kustom-enabled")).toBeChecked();
+    expect(document.getElementById("kustom-watermark-enabled")).toBeChecked();
+    expect(document.getElementById("kustom-dot-watermark")).toHaveClass("on");
+    expect(document.getElementById("kustom-subtitle-enabled")).toBeChecked();
+  });
+
+  test("toggle Aktifkan Kustomisasi mengirim PUT /customization", async () => {
+    const fetchMock = mockFetchQueue([CUSTOM_DEFAULT, { ...CUSTOM_DEFAULT, enabled: true }]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(document.getElementById("kustom-enabled"));
+    await flush();
+
+    const [url, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(url).toContain("/customization");
+    expect(opts.method).toBe("PUT");
+    expect(JSON.parse(opts.body)).toEqual({ enabled: true });
+    expect(document.getElementById("kustom-enabled")).toBeChecked();
+  });
+
+  test("toggle section Overlay Gambar mengirim payload section & menyalakan dot", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      { ...CUSTOM_DEFAULT, overlay_gambar: { enabled: true } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(document.getElementById("kustom-overlay_gambar-enabled"));
+    await flush();
+
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(JSON.parse(opts.body)).toEqual({ overlay_gambar: { enabled: true } });
+    expect(document.getElementById("kustom-dot-overlay_gambar")).toHaveClass("on");
+  });
+
+  test("Impor preset memanggil dialog file lalu menerapkan isinya", async () => {
+    window.autoclip = {
+      importCustomizationPreset: jest
+        .fn()
+        .mockResolvedValue({ enabled: true, color_grade: { enabled: true } }),
+    };
+    mockFetchQueue([
+      CUSTOM_DEFAULT,
+      { ...CUSTOM_DEFAULT, enabled: true, color_grade: { enabled: true } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(screen.getByRole("button", { name: /^impor$/i }));
+    await flush();
+
+    expect(window.autoclip.importCustomizationPreset).toHaveBeenCalled();
+    expect(document.getElementById("kustom-enabled")).toBeChecked();
+    expect(document.getElementById("kustom-dot-color_grade")).toHaveClass("on");
+    delete window.autoclip;
+  });
+
+  test("Impor dibatalkan (dialog return null) tidak mengubah apa pun", async () => {
+    window.autoclip = { importCustomizationPreset: jest.fn().mockResolvedValue(null) };
+    const fetchMock = mockFetchQueue([CUSTOM_DEFAULT]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const callsBefore = fetchMock.mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: /^impor$/i }));
+    await flush();
+
+    expect(fetchMock.mock.calls.length).toBe(callsBefore);
+    delete window.autoclip;
+  });
+
+  test("Ekspor preset mengambil config aktif lalu memanggil dialog simpan", async () => {
+    window.autoclip = { exportCustomizationPreset: jest.fn().mockResolvedValue(true) };
+    mockFetchQueue([CUSTOM_DEFAULT, CUSTOM_DEFAULT]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(screen.getByRole("button", { name: /^ekspor$/i }));
+    await flush();
+
+    expect(window.autoclip.exportCustomizationPreset).toHaveBeenCalledWith(CUSTOM_DEFAULT);
+    expect(screen.getByText(/preset diekspor/i)).toBeInTheDocument();
+    delete window.autoclip;
+  });
+
+  test("Reset mengembalikan preset ke default via POST /customization/reset", async () => {
+    mockFetchQueue([
+      { ...CUSTOM_DEFAULT, enabled: true, watermark: { enabled: true } },
+      CUSTOM_DEFAULT,
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+    expect(document.getElementById("kustom-enabled")).toBeChecked();
+
+    await userEvent.click(screen.getByRole("button", { name: /^reset$/i }));
+    await flush();
+
+    expect(document.getElementById("kustom-enabled")).not.toBeChecked();
+    expect(document.getElementById("kustom-watermark-enabled")).not.toBeChecked();
   });
 });
