@@ -4,7 +4,9 @@ import pytest
 
 from pipeline.subtitle import (
     SubtitleBurnError,
+    SubtitleStyle,
     _format_ass_time,
+    _hex_to_ass_color,
     burn_subtitle,
     generate_ass,
     join_words,
@@ -107,6 +109,97 @@ def test_generate_ass_uses_custom_play_res():
     content = generate_ass(SAMPLE_WORDS, segment_start=10.0, output_width=720, output_height=1280)
     assert "PlayResX: 720" in content
     assert "PlayResY: 1280" in content
+
+
+# --- _hex_to_ass_color ---
+
+
+@pytest.mark.parametrize(
+    "hex_color,alpha,expected",
+    [
+        ("#FFFFFF", 0, "&H00FFFFFF"),
+        ("#000000", 0, "&H00000000"),
+        ("#FF0000", 0, "&H000000FF"),  # ASS BGR: red -> RR di posisi akhir
+        ("#00FF00", 0, "&H0000FF00"),
+        ("#0000FF", 0, "&H00FF0000"),
+        ("#ffffff", 128, "&H80FFFFFF"),  # lowercase input diterima, alpha custom
+    ],
+)
+def test_hex_to_ass_color(hex_color, alpha, expected):
+    assert _hex_to_ass_color(hex_color, alpha) == expected
+
+
+# --- generate_ass dengan style (Kustomisasi aktif) ---
+
+
+def _style(**overrides):
+    return SubtitleStyle(**overrides)
+
+
+def test_generate_ass_without_style_unchanged_from_before():
+    # style=None (default) harus identik dgn output sebelum fitur Kustomisasi ada.
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0)
+    golden = (FIXTURES / "expected_subtitle.ass").read_text()
+    assert content == golden
+    assert "\\pos(" not in content
+
+
+def test_generate_ass_with_style_uses_style_colors():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style(text_color="#112233"))
+    assert "&H00332211" in content  # BGR dari #112233, alpha 0 (opacity 100 default)
+
+
+def test_generate_ass_with_style_opacity_sets_alpha():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style(opacity=50))
+    # alpha = round((100-50)*255/100) = 128 = 0x80
+    assert "&H80" in content
+
+
+def test_generate_ass_with_style_background_box_uses_border_style_3():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style(background_box=True))
+    style_line = next(line for line in content.splitlines() if line.startswith("Style:"))
+    fields = style_line.split(",")
+    assert fields[15] == "3"  # BorderStyle
+
+
+def test_generate_ass_with_style_no_background_box_uses_border_style_1():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style(background_box=False))
+    style_line = next(line for line in content.splitlines() if line.startswith("Style:"))
+    assert style_line.split(",")[15] == "1"
+
+
+def test_generate_ass_with_style_bold_flag():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style(bold=False))
+    style_line = next(line for line in content.splitlines() if line.startswith("Style:"))
+    assert style_line.split(",")[7] == "0"
+
+
+@pytest.mark.parametrize("align,expected", [("left", "4"), ("center", "5"), ("right", "6")])
+def test_generate_ass_with_style_alignment(align, expected):
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style(align=align))
+    style_line = next(line for line in content.splitlines() if line.startswith("Style:"))
+    assert style_line.split(",")[18] == expected
+
+
+def test_generate_ass_with_style_pos_override_matches_percentage():
+    content = generate_ass(
+        SAMPLE_WORDS,
+        segment_start=10.0,
+        output_width=1000,
+        output_height=2000,
+        style=_style(pos_x=25, pos_y=75),
+    )
+    assert "\\pos(250,1500)" in content
+
+
+def test_generate_ass_with_style_pos_tag_only_on_first_word_per_line():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style())
+    assert content.count("\\pos(") == 2  # 7 kata / 4 per baris = 2 baris
+
+
+def test_generate_ass_with_style_uses_custom_font():
+    content = generate_ass(SAMPLE_WORDS, segment_start=10.0, style=_style(font="Impact"))
+    assert "Style: Default,Impact," in content
 
 
 # --- burn_subtitle ---

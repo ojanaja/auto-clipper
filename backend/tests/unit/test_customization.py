@@ -1,7 +1,12 @@
 import json
 
+import pytest
+
 from customization import (
+    ColorGradeConfig,
     CustomizationConfig,
+    CustomizationError,
+    SubtitleStyleConfig,
     default_customization_path,
     load_customization,
     save_customization,
@@ -18,10 +23,112 @@ def test_default_customization_all_disabled_except_subtitle():
     assert cfg.color_grade.enabled is False
 
 
+def test_default_subtitle_style_matches_table():
+    s = SubtitleStyleConfig()
+    assert s.template == "karaoke_pop"
+    assert s.font == "Arial"
+    assert s.size == 80
+    assert s.align == "center"
+    assert s.opacity == 100
+    assert s.text_color == "#FFFFFF"
+    assert s.highlight_color == "#FFFF00"
+    assert s.outline_color == "#000000"
+    assert s.shadow_color == "#000000"
+    assert s.outline_width == 4.0
+    assert s.shadow_width == 2.0
+    assert s.background_box is False
+    assert s.pos_x == 50
+    assert s.pos_y == 70
+
+
 def test_to_dict_nests_sections():
     data = CustomizationConfig().to_dict()
-    assert data["subtitle"] == {"enabled": True}
+    assert data["subtitle"]["template"] == "karaoke_pop"
+    assert data["subtitle"]["enabled"] is True
     assert data["watermark"] == {"enabled": False}
+
+
+@pytest.mark.parametrize(
+    "overrides,message_contains",
+    [
+        ({"template": "not-a-template"}, "template"),
+        ({"align": "diagonal"}, "align"),
+        ({"size": 10}, "size"),
+        ({"size": 999}, "size"),
+        ({"opacity": -1}, "opacity"),
+        ({"opacity": 101}, "opacity"),
+        ({"outline_width": -1}, "outline_width"),
+        ({"outline_width": 11}, "outline_width"),
+        ({"shadow_width": 11}, "shadow_width"),
+        ({"pos_x": -1}, "pos_x"),
+        ({"pos_y": 101}, "pos_y"),
+        ({"text_color": "white"}, "text_color"),
+        ({"highlight_color": "#GGGGGG"}, "highlight_color"),
+        ({"outline_color": "#FFF"}, "outline_color"),
+        ({"shadow_color": "000000"}, "shadow_color"),
+    ],
+)
+def test_subtitle_validate_rejects_invalid(overrides, message_contains):
+    style = SubtitleStyleConfig(**overrides)
+    with pytest.raises(CustomizationError, match=message_contains):
+        style.validate()
+
+
+def test_subtitle_validate_accepts_defaults():
+    SubtitleStyleConfig().validate()  # tidak raise
+
+
+def test_customization_validate_delegates_to_subtitle():
+    cfg = CustomizationConfig()
+    cfg.subtitle.template = "invalid"
+    with pytest.raises(CustomizationError, match="template"):
+        cfg.validate()
+
+
+def test_default_color_grade_matches_table():
+    g = ColorGradeConfig()
+    assert g.preset == "none"
+    assert g.contrast == 1.0
+    assert g.brightness == 0.0
+    assert g.saturation == 1.0
+    assert g.gamma == 1.0
+    assert g.temperature == 0
+    assert g.vignette == 0.0
+
+
+@pytest.mark.parametrize(
+    "overrides,message_contains",
+    [
+        ({"preset": "not-a-preset"}, "preset"),
+        ({"contrast": 0.4}, "contrast"),
+        ({"contrast": 2.1}, "contrast"),
+        ({"brightness": -0.6}, "brightness"),
+        ({"brightness": 0.6}, "brightness"),
+        ({"saturation": -0.1}, "saturation"),
+        ({"saturation": 2.1}, "saturation"),
+        ({"gamma": 0.4}, "gamma"),
+        ({"gamma": 2.1}, "gamma"),
+        ({"temperature": -101}, "temperature"),
+        ({"temperature": 101}, "temperature"),
+        ({"vignette": -0.1}, "vignette"),
+        ({"vignette": 1.1}, "vignette"),
+    ],
+)
+def test_color_grade_validate_rejects_invalid(overrides, message_contains):
+    grade = ColorGradeConfig(**overrides)
+    with pytest.raises(CustomizationError, match=message_contains):
+        grade.validate()
+
+
+def test_color_grade_validate_accepts_defaults():
+    ColorGradeConfig().validate()  # tidak raise
+
+
+def test_customization_validate_delegates_to_color_grade():
+    cfg = CustomizationConfig()
+    cfg.color_grade.preset = "invalid"
+    with pytest.raises(CustomizationError, match="preset"):
+        cfg.validate()
 
 
 def test_from_dict_roundtrip():
@@ -72,7 +179,8 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     save_customization(cfg)
 
     saved_raw = json.loads((tmp_path / "customization.json").read_text())
-    assert saved_raw["color_grade"] == {"enabled": True}
+    assert saved_raw["color_grade"]["enabled"] is True
+    assert saved_raw["color_grade"]["preset"] == "none"
 
     loaded = load_customization()
     assert loaded == cfg

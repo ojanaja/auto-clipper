@@ -788,6 +788,137 @@
         height: 18px;
       }
 
+      .kustom-preview {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-4);
+      }
+
+      .kustom-preview-canvas {
+        position: relative;
+        width: 168px;
+        height: 298px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+
+      .kustom-preview-bg {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(160deg, #1e293b, #0b0f17 65%);
+        transition: filter 120ms var(--ease-out);
+      }
+
+      .kustom-preview-vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .kustom-preview-subtitle {
+        position: absolute;
+        white-space: nowrap;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      .kustom-template-gallery {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-2);
+      }
+
+      .kustom-template-btn {
+        background: var(--bg-elevated);
+        color: var(--color-foreground);
+        border: 1px solid var(--color-border);
+        min-height: 36px;
+        padding: var(--space-2);
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: none;
+      }
+
+      .kustom-template-btn:hover:not(:disabled) {
+        background: var(--color-muted);
+        transform: none;
+      }
+
+      .kustom-template-btn.active {
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+      }
+
+      .kustom-advanced {
+        margin-top: var(--space-1);
+      }
+
+      .kustom-advanced summary {
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--color-muted-fg);
+        list-style: none;
+      }
+
+      .kustom-advanced summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .kustom-advanced-body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+        padding-top: var(--space-3);
+      }
+
+      .kustom-field-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+      }
+
+      .kustom-field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-muted-fg);
+        flex: 1;
+        min-width: 100px;
+      }
+
+      .kustom-field input,
+      .kustom-field select {
+        background: var(--bg-elevated);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        color: var(--color-foreground);
+        padding: 8px 10px;
+        font-size: 13px;
+        min-height: 36px;
+      }
+
+      .kustom-field input[type="color"] {
+        padding: 4px;
+        min-height: 32px;
+      }
+
+      .kustom-range-value {
+        color: var(--color-muted-fg);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .kustom-check input {
+        accent-color: var(--color-primary);
+        width: 18px;
+        height: 18px;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
@@ -1133,6 +1264,17 @@
       </div>
       <p id="kustom-status" role="status"></p>
 
+      <div class="kustom-preview">
+        <div class="kustom-preview-canvas">
+          <div id="kustom-preview-bg" class="kustom-preview-bg"></div>
+          <div id="kustom-preview-vignette" class="kustom-preview-vignette"></div>
+          <span id="kustom-preview-subtitle" class="kustom-preview-subtitle"
+            >Ini contoh subtitle</span
+          >
+        </div>
+        <p class="helper">Pratinjau perkiraan (CSS) &mdash; hasil render sebenarnya dari ffmpeg.</p>
+      </div>
+
       <details class="kustom-section" open>
         <summary><span class="dot" id="kustom-dot-subtitle"></span> Subtitle</summary>
         <div class="kustom-section-body">
@@ -1140,7 +1282,117 @@
             <input type="checkbox" id="kustom-subtitle-enabled" />
             Aktifkan Subtitle
           </label>
-          <p class="helper">Template &amp; pengaturan detail hadir di fase berikutnya.</p>
+
+          <div class="kustom-template-gallery">
+            <button type="button" class="kustom-template-btn" data-template="karaoke_pop">
+              Karaoke Pop
+            </button>
+            <button type="button" class="kustom-template-btn" data-template="hormozi">
+              Hormozi
+            </button>
+            <button type="button" class="kustom-template-btn" data-template="neon_glow">
+              Neon Glow
+            </button>
+            <button type="button" class="kustom-template-btn" data-template="tiktok_bold">
+              TikTok Bold
+            </button>
+            <button type="button" class="kustom-template-btn" data-template="word_punch">
+              Word Punch
+            </button>
+            <button type="button" class="kustom-template-btn" data-template="clean">Clean</button>
+          </div>
+
+          <details class="kustom-advanced">
+            <summary>Lanjutan</summary>
+            <div class="kustom-advanced-body">
+              <div class="kustom-field-row">
+                <label class="kustom-field"
+                  >Font
+                  <select id="kustom-subtitle-font">
+                    <option value="Arial">Arial</option>
+                    <option value="Arial Black">Arial Black</option>
+                    <option value="Impact">Impact</option>
+                    <option value="Verdana">Verdana</option>
+                  </select>
+                </label>
+                <label class="kustom-field"
+                  >Ukuran
+                  <input type="number" id="kustom-subtitle-size" min="24" max="160" />
+                </label>
+                <label class="kustom-field"
+                  >Align
+                  <select id="kustom-subtitle-align">
+                    <option value="left">Kiri</option>
+                    <option value="center">Tengah</option>
+                    <option value="right">Kanan</option>
+                  </select>
+                </label>
+              </div>
+              <div class="kustom-field-row">
+                <label class="kustom-field"
+                  >Opasitas
+                  <input type="range" id="kustom-subtitle-opacity" min="0" max="100" />
+                  <span id="kustom-subtitle-opacity-value" class="kustom-range-value"></span>
+                </label>
+              </div>
+              <div class="kustom-field-row">
+                <label class="kustom-field"
+                  >Teks
+                  <input type="color" id="kustom-subtitle-text-color" />
+                </label>
+                <label class="kustom-field"
+                  >Highlight
+                  <input type="color" id="kustom-subtitle-highlight-color" />
+                </label>
+                <label class="kustom-field"
+                  >Outline
+                  <input type="color" id="kustom-subtitle-outline-color" />
+                </label>
+                <label class="kustom-field"
+                  >Shadow
+                  <input type="color" id="kustom-subtitle-shadow-color" />
+                </label>
+              </div>
+              <div class="kustom-field-row">
+                <label class="kustom-field"
+                  >Outline Width
+                  <input
+                    type="range"
+                    id="kustom-subtitle-outline-width"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                  />
+                  <span id="kustom-subtitle-outline-width-value" class="kustom-range-value"></span>
+                </label>
+                <label class="kustom-field"
+                  >Shadow Width
+                  <input
+                    type="range"
+                    id="kustom-subtitle-shadow-width"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                  />
+                  <span id="kustom-subtitle-shadow-width-value" class="kustom-range-value"></span>
+                </label>
+              </div>
+              <label class="kustom-check">
+                <input type="checkbox" id="kustom-subtitle-background-box" />
+                Kotak Latar
+              </label>
+              <div class="kustom-field-row">
+                <label class="kustom-field"
+                  >Posisi X (%)
+                  <input type="number" id="kustom-subtitle-pos-x" min="0" max="100" />
+                </label>
+                <label class="kustom-field"
+                  >Posisi Y (%)
+                  <input type="number" id="kustom-subtitle-pos-y" min="0" max="100" />
+                </label>
+              </div>
+            </div>
+          </details>
         </div>
       </details>
 
@@ -1184,7 +1436,83 @@
             <input type="checkbox" id="kustom-color_grade-enabled" />
             Aktifkan Color Grade
           </label>
-          <p class="helper">Pengaturan detail hadir di fase berikutnya.</p>
+
+          <div class="kustom-template-gallery">
+            <button type="button" class="kustom-template-btn kustom-grade-btn" data-preset="none">
+              Tidak Ada
+            </button>
+            <button
+              type="button"
+              class="kustom-template-btn kustom-grade-btn"
+              data-preset="cinematic"
+            >
+              Cinematic
+            </button>
+            <button type="button" class="kustom-template-btn kustom-grade-btn" data-preset="hangat">
+              Hangat
+            </button>
+            <button type="button" class="kustom-template-btn kustom-grade-btn" data-preset="dingin">
+              Dingin
+            </button>
+            <button type="button" class="kustom-template-btn kustom-grade-btn" data-preset="cerah">
+              Cerah
+            </button>
+            <button type="button" class="kustom-template-btn kustom-grade-btn" data-preset="film">
+              Film
+            </button>
+            <button type="button" class="kustom-template-btn kustom-grade-btn" data-preset="mono">
+              Mono
+            </button>
+          </div>
+
+          <div class="kustom-field-row">
+            <label class="kustom-field"
+              >Kontras
+              <input type="range" id="kustom-color-grade-contrast" min="0.5" max="2" step="0.05" />
+              <span id="kustom-color-grade-contrast-value" class="kustom-range-value"></span>
+            </label>
+            <label class="kustom-field"
+              >Terang
+              <input
+                type="range"
+                id="kustom-color-grade-brightness"
+                min="-0.5"
+                max="0.5"
+                step="0.01"
+              />
+              <span id="kustom-color-grade-brightness-value" class="kustom-range-value"></span>
+            </label>
+          </div>
+          <div class="kustom-field-row">
+            <label class="kustom-field"
+              >Saturasi
+              <input type="range" id="kustom-color-grade-saturation" min="0" max="2" step="0.05" />
+              <span id="kustom-color-grade-saturation-value" class="kustom-range-value"></span>
+            </label>
+            <label class="kustom-field"
+              >Gamma
+              <input type="range" id="kustom-color-grade-gamma" min="0.5" max="2" step="0.05" />
+              <span id="kustom-color-grade-gamma-value" class="kustom-range-value"></span>
+            </label>
+          </div>
+          <div class="kustom-field-row">
+            <label class="kustom-field"
+              >Suhu
+              <input
+                type="range"
+                id="kustom-color-grade-temperature"
+                min="-100"
+                max="100"
+                step="5"
+              />
+              <span id="kustom-color-grade-temperature-value" class="kustom-range-value"></span>
+            </label>
+            <label class="kustom-field"
+              >Vignette
+              <input type="range" id="kustom-color-grade-vignette" min="0" max="1" step="0.05" />
+              <span id="kustom-color-grade-vignette-value" class="kustom-range-value"></span>
+            </label>
+          </div>
         </div>
       </details>
     </div>

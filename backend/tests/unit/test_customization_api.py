@@ -18,7 +18,8 @@ def test_get_customization_returns_defaults(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["enabled"] is False
-    assert data["subtitle"] == {"enabled": True}
+    assert data["subtitle"]["enabled"] is True
+    assert data["subtitle"]["template"] == "karaoke_pop"
     assert data["watermark"] == {"enabled": False}
 
 
@@ -47,6 +48,65 @@ def test_put_customization_unknown_field_ignored(client):
     resp = client.put("/customization", json={"foo": "bar", "enabled": True})
     assert resp.status_code == 200
     assert resp.json()["enabled"] is True
+
+
+def test_put_customization_section_partial_update_preserves_sibling_fields(client):
+    client.put("/customization", json={"subtitle": {"template": "hormozi"}})
+    resp = client.put("/customization", json={"subtitle": {"opacity": 60}})
+    assert resp.status_code == 200
+    data = resp.json()["subtitle"]
+    assert data["opacity"] == 60
+    assert data["template"] == "hormozi"  # tak ketimpa update sebelumnya
+
+
+def test_put_customization_invalid_subtitle_template_rejected(client):
+    resp = client.put("/customization", json={"subtitle": {"template": "invalid"}})
+    assert resp.status_code == 422
+    assert "template" in resp.text
+
+
+def test_put_customization_invalid_subtitle_opacity_rejected(client):
+    resp = client.put("/customization", json={"subtitle": {"opacity": 200}})
+    assert resp.status_code == 422
+    assert "opacity" in resp.text
+
+
+def test_put_customization_invalid_hex_color_rejected(client):
+    resp = client.put("/customization", json={"subtitle": {"text_color": "white"}})
+    assert resp.status_code == 422
+    assert "text_color" in resp.text
+
+
+def test_put_customization_invalid_field_does_not_persist(client, tmp_path):
+    client.put("/customization", json={"subtitle": {"template": "hormozi"}})
+    resp = client.put("/customization", json={"subtitle": {"opacity": 999}})
+    assert resp.status_code == 422
+
+    saved = json.loads((tmp_path / "customization.json").read_text())
+    assert saved["subtitle"]["template"] == "hormozi"
+    assert saved["subtitle"]["opacity"] == 100
+
+
+def test_put_customization_color_grade_partial_update(client):
+    client.put("/customization", json={"color_grade": {"preset": "cinematic", "vignette": 0.35}})
+    resp = client.put("/customization", json={"color_grade": {"contrast": 1.2}})
+    assert resp.status_code == 200
+    data = resp.json()["color_grade"]
+    assert data["contrast"] == 1.2
+    assert data["preset"] == "cinematic"  # tak ketimpa
+    assert data["vignette"] == 0.35
+
+
+def test_put_customization_invalid_color_grade_preset_rejected(client):
+    resp = client.put("/customization", json={"color_grade": {"preset": "invalid"}})
+    assert resp.status_code == 422
+    assert "preset" in resp.text
+
+
+def test_put_customization_invalid_color_grade_contrast_rejected(client):
+    resp = client.put("/customization", json={"color_grade": {"contrast": 5.0}})
+    assert resp.status_code == 422
+    assert "contrast" in resp.text
 
 
 def test_reset_customization_restores_defaults(client):

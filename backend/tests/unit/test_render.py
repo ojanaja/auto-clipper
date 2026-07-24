@@ -104,6 +104,57 @@ def test_render_segment_writes_ass_only_segment_words(mocker, tmp_path):
     assert "0:00:00.50" in content
 
 
+def test_render_segment_passes_subtitle_style_to_ass(mocker, tmp_path):
+    from pipeline.subtitle import SubtitleStyle
+
+    _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        subtitle_style=SubtitleStyle(text_color="#112233", background_box=True),
+    )
+    ass_files = list(tmp_path.glob("*.ass"))
+    content = ass_files[0].read_text()
+    assert "&H00332211" in content  # text_color BGR
+    style_line = next(line for line in content.splitlines() if line.startswith("Style:"))
+    assert style_line.split(",")[15] == "3"  # BorderStyle=3 (background_box)
+
+
+def test_render_segment_inserts_color_grade_filters_before_subtitle(mocker, tmp_path):
+    from pipeline.color_grade import ColorGradeStyle
+
+    calls = _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        color_grade=ColorGradeStyle(contrast=1.3, vignette=0.5),
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    vf = ffmpeg_cmd[ffmpeg_cmd.index("-vf") + 1]
+    assert "eq=contrast=1.3" in vf
+    assert "vignette=angle=" in vf
+    # eq/vignette harus sebelum filter ass= (subtitle tak ikut ter-grade).
+    assert vf.index("eq=contrast") < vf.index("ass=filename")
+
+
+def test_render_segment_no_color_grade_filters_when_none(mocker, tmp_path):
+    calls = _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4", SEGMENT, WORDS, tmp_path / "c.mp4", work_dir=tmp_path, color_grade=None
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg")
+    vf = ffmpeg_cmd[ffmpeg_cmd.index("-vf") + 1]
+    assert "eq=" not in vf
+    assert "vignette=" not in vf
+    assert "colortemperature=" not in vf
+
+
 def test_render_segment_ffmpeg_failure_raises(mocker, tmp_path):
     def fake_run(cmd, **kwargs):
         if cmd[0] == "ffprobe":

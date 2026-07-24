@@ -7,7 +7,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from config import AppConfig, ConfigError, load_config, resolve_output_dir, save_config
-from customization import CustomizationConfig, load_customization, save_customization
+from customization import (
+    CustomizationConfig,
+    CustomizationError,
+    load_customization,
+    save_customization,
+)
 from job_manager import JobManager, JobNotFoundError, JobStatus
 from orchestrator import PipelineOrchestrator
 from pipeline.subtitle import join_words
@@ -269,6 +274,11 @@ def update_customization(update: CustomizationUpdate):
             merged[name] = {**current[name], **update_dict[name]}
 
     new_cfg = CustomizationConfig.from_dict(merged)
+    try:
+        new_cfg.validate()
+    except CustomizationError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
     save_customization(new_cfg)
     return new_cfg.to_dict()
 

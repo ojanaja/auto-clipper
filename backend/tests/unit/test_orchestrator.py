@@ -518,6 +518,112 @@ def test_render_uses_config_for_output_settings(manager, broadcaster, deps, tmp_
     assert kwargs["encoder"] == "libx264"
 
 
+def test_render_subtitle_style_none_when_customization_disabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    deps["customization_provider"] = lambda: CustomizationConfig()  # enabled=False (default)
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["subtitle_style"] is None
+
+
+def test_render_subtitle_style_none_when_master_on_but_subtitle_section_off(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.subtitle.enabled = False
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["subtitle_style"] is None
+
+
+def test_render_uses_customization_subtitle_style_when_enabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.subtitle.enabled = True
+    cfg.subtitle.text_color = "#112233"
+    cfg.subtitle.pos_x = 30
+    cfg.subtitle.pos_y = 40
+    cfg.subtitle.background_box = True
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    style = deps["render_fn"].call_args.kwargs["subtitle_style"]
+    assert style is not None
+    assert style.text_color == "#112233"
+    assert style.pos_x == 30
+    assert style.pos_y == 40
+    assert style.background_box is True
+
+
+def test_render_color_grade_none_when_customization_disabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    deps["customization_provider"] = lambda: CustomizationConfig()  # enabled=False (default)
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["color_grade"] is None
+
+
+def test_render_color_grade_none_when_master_on_but_section_off(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.color_grade.enabled = False
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["color_grade"] is None
+
+
+def test_render_uses_customization_color_grade_when_enabled(manager, broadcaster, deps, tmp_path):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.color_grade.enabled = True
+    cfg.color_grade.contrast = 1.3
+    cfg.color_grade.temperature = 40
+    cfg.color_grade.vignette = 0.5
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    style = deps["render_fn"].call_args.kwargs["color_grade"]
+    assert style is not None
+    assert style.contrast == 1.3
+    assert style.temperature == 40
+    assert style.vignette == 0.5
+
+
 def test_render_face_tracking_passes_crop_path(manager, broadcaster, deps, tmp_path, monkeypatch):
     monkeypatch.setattr("orchestrator.probe_dimensions", lambda path: (1920, 1080))
     monkeypatch.setattr(

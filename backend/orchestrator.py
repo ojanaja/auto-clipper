@@ -6,7 +6,9 @@ from pathlib import Path
 import anthropic
 
 from config import load_config, resolve_output_dir
+from customization import ColorGradeConfig, SubtitleStyleConfig, load_customization
 from job_manager import JobManager, JobStatus
+from pipeline.color_grade import ColorGradeStyle
 from pipeline.crop_path import build_crop_path
 from pipeline.download import InvalidURLError, VideoUnavailableError, download_video
 from pipeline.face_detect import detect_faces_sampled, sample_frames
@@ -14,7 +16,46 @@ from pipeline.highlight import find_highlights
 from pipeline.llm_client import LLMAuthError, make_llm_client
 from pipeline.render import probe_dimensions, render_segment
 from pipeline.speaker import build_active_timeline, compute_motion_scores
+from pipeline.subtitle import SubtitleStyle
 from pipeline.transcribe import transcribe_audio
+
+
+def _build_color_grade_style(grade_cfg: ColorGradeConfig) -> ColorGradeStyle:
+    """Petakan section Color Grade dari CustomizationConfig ke style render.
+
+    Cuma dipanggil saat tab Kustomisasi & section Color Grade aktif (lihat
+    run_render); kalau tidak, render_segment dipanggil dgn color_grade=None
+    supaya video tak disentuh filter warna sama sekali."""
+    return ColorGradeStyle(
+        contrast=grade_cfg.contrast,
+        brightness=grade_cfg.brightness,
+        saturation=grade_cfg.saturation,
+        gamma=grade_cfg.gamma,
+        temperature=grade_cfg.temperature,
+        vignette=grade_cfg.vignette,
+    )
+
+
+def _build_subtitle_style(subtitle_cfg: SubtitleStyleConfig) -> SubtitleStyle:
+    """Petakan section Subtitle dari CustomizationConfig ke style render.
+
+    Cuma dipanggil saat tab Kustomisasi & section Subtitle aktif (lihat
+    run_render); kalau tidak, render_segment dipanggil dgn subtitle_style=None
+    supaya tampilan default (pra-Kustomisasi) tak berubah sama sekali."""
+    return SubtitleStyle(
+        font=subtitle_cfg.font,
+        text_color=subtitle_cfg.text_color,
+        highlight_color=subtitle_cfg.highlight_color,
+        outline_color=subtitle_cfg.outline_color,
+        shadow_color=subtitle_cfg.shadow_color,
+        outline_width=subtitle_cfg.outline_width,
+        shadow_width=subtitle_cfg.shadow_width,
+        background_box=subtitle_cfg.background_box,
+        opacity=subtitle_cfg.opacity,
+        align=subtitle_cfg.align,
+        pos_x=subtitle_cfg.pos_x,
+        pos_y=subtitle_cfg.pos_y,
+    )
 
 # Kesalahan yang PASTI gagal lagi kalau diulang tanpa user memperbaiki
 # sesuatu (URL salah, video privat, API key ditolak/belum diset) -> jangan
@@ -61,6 +102,7 @@ class PipelineOrchestrator:
         llm_client=None,
         work_root: Path | None = None,
         config_provider=load_config,
+        customization_provider=load_customization,
         detect_faces_fn=detect_faces_sampled,
         sample_frames_fn=sample_frames,
         build_active_timeline_fn=build_active_timeline,
@@ -74,6 +116,7 @@ class PipelineOrchestrator:
         self._render = render_fn
         self._llm_client = llm_client
         self._config_provider = config_provider
+        self._customization_provider = customization_provider
         self._detect_faces = detect_faces_fn
         self._sample_frames = sample_frames_fn
         self._build_active_timeline = build_active_timeline_fn
@@ -240,6 +283,20 @@ class PipelineOrchestrator:
             target_ratio = cfg.target_ratio()
             face_tracking_enabled = cfg.face_tracking_enabled
 
+            # Style subtitle kustom cuma dipakai kalau tab Kustomisasi & section
+            # Subtitle-nya aktif; selain itu render_segment pakai tampilan default
+            # (subtitle_style=None) supaya perilaku lama tak berubah.
+            customization = self._customization_provider()
+            subtitle_style = None
+            if customization.enabled and customization.subtitle.enabled:
+                subtitle_style = _build_subtitle_style(customization.subtitle)
+
+            # Sama seperti subtitle_style: cuma aktif kalau section Color Grade-nya
+            # juga dinyalakan, selain itu video tak difilter sama sekali.
+            color_grade_style = None
+            if customization.enabled and customization.color_grade.enabled:
+                color_grade_style = _build_color_grade_style(customization.color_grade)
+
             frame_w, frame_h = 0, 0
             if face_tracking_enabled and job.video_path:
                 try:
@@ -325,6 +382,8 @@ class PipelineOrchestrator:
                         output_height=output_height,
                         subtitle_enabled=cfg.subtitle_enabled,
                         subtitle_font_size=cfg.subtitle_font_size,
+                        subtitle_style=subtitle_style,
+                        color_grade=color_grade_style,
                         encoder=cfg.encoder,
                         crop_path=crop_path,
                     )

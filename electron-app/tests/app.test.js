@@ -1,4 +1,4 @@
-const { screen, within } = require("@testing-library/dom");
+const { screen, within, fireEvent } = require("@testing-library/dom");
 const userEvent = require("@testing-library/user-event").default;
 const { loadApp, mockFetchQueue, FakeWebSocket } = require("./helpers");
 
@@ -11,11 +11,36 @@ const SEGMENTS = {
 
 const CUSTOM_DEFAULT = {
   enabled: false,
-  subtitle: { enabled: true },
+  subtitle: {
+    enabled: true,
+    template: "karaoke_pop",
+    font: "Arial",
+    size: 80,
+    align: "center",
+    opacity: 100,
+    text_color: "#FFFFFF",
+    highlight_color: "#FFFF00",
+    outline_color: "#000000",
+    shadow_color: "#000000",
+    outline_width: 4,
+    shadow_width: 2,
+    background_box: false,
+    pos_x: 50,
+    pos_y: 70,
+  },
   overlay_sumber: { enabled: false },
   watermark: { enabled: false },
   overlay_gambar: { enabled: false },
-  color_grade: { enabled: false },
+  color_grade: {
+    enabled: false,
+    preset: "none",
+    contrast: 1.0,
+    brightness: 0.0,
+    saturation: 1.0,
+    gamma: 1.0,
+    temperature: 0,
+    vignette: 0.0,
+  },
 };
 
 function flush() {
@@ -747,5 +772,213 @@ describe("tab Kustomisasi: preset kerangka (Fase 1a)", () => {
 
     expect(document.getElementById("kustom-enabled")).not.toBeChecked();
     expect(document.getElementById("kustom-watermark-enabled")).not.toBeChecked();
+  });
+});
+
+describe("tab Kustomisasi: Subtitle template & advanced (Fase 1b)", () => {
+  test("klik template Hormozi mengirim preset lengkap & menandai tombol aktif", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      {
+        ...CUSTOM_DEFAULT,
+        subtitle: {
+          ...CUSTOM_DEFAULT.subtitle,
+          template: "hormozi",
+          font: "Arial Black",
+          highlight_color: "#22C55E",
+          outline_width: 5,
+          shadow_width: 0,
+        },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(screen.getByRole("button", { name: /^hormozi$/i }));
+    await flush();
+
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    const body = JSON.parse(opts.body);
+    expect(body.subtitle.template).toBe("hormozi");
+    expect(body.subtitle.highlight_color).toBe("#22C55E");
+    expect(screen.getByRole("button", { name: /^hormozi$/i })).toHaveClass("active");
+  });
+
+  test("ubah field advanced (Teks color) memicu PUT subtitle.text_color", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      { ...CUSTOM_DEFAULT, subtitle: { ...CUSTOM_DEFAULT.subtitle, text_color: "#123456" } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    document.querySelector(".kustom-advanced").open = true;
+    const input = document.getElementById("kustom-subtitle-text-color");
+    fireEvent.input(input, { target: { value: "#123456" } });
+    fireEvent.change(input, { target: { value: "#123456" } });
+    await flush();
+
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(JSON.parse(opts.body)).toEqual({ subtitle: { text_color: "#123456" } });
+  });
+
+  test("slider opacity: input update preview instan tanpa PUT, change baru menyimpan", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      { ...CUSTOM_DEFAULT, subtitle: { ...CUSTOM_DEFAULT.subtitle, opacity: 40 } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+    document.querySelector(".kustom-advanced").open = true;
+
+    const slider = document.getElementById("kustom-subtitle-opacity");
+    const preview = document.getElementById("kustom-preview-subtitle");
+    const callsBeforeDrag = fetchMock.mock.calls.length;
+
+    fireEvent.input(slider, { target: { value: "40" } });
+    expect(preview.style.opacity).toBe("0.4");
+    expect(fetchMock.mock.calls.length).toBe(callsBeforeDrag); // belum PUT saat masih drag
+
+    fireEvent.change(slider, { target: { value: "40" } });
+    await flush();
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBeforeDrag);
+  });
+
+  test("preview subtitle posisi ikut pos_x/pos_y dari config saat load", async () => {
+    mockFetchQueue([
+      { ...CUSTOM_DEFAULT, subtitle: { ...CUSTOM_DEFAULT.subtitle, pos_x: 20, pos_y: 30 } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const preview = document.getElementById("kustom-preview-subtitle");
+    expect(preview.style.left).toBe("20%");
+    expect(preview.style.top).toBe("30%");
+  });
+
+  test("outline/shadow width di preview discale proporsional ke font, bukan dipakai mentah", async () => {
+    // Regresi: outline_width=5 (skala render 1080px) langsung dipakai jadi
+    // 2.5px stroke di font preview ~16px bikin teks jadi blob gak kebaca.
+    mockFetchQueue([
+      {
+        ...CUSTOM_DEFAULT,
+        subtitle: { ...CUSTOM_DEFAULT.subtitle, size: 80, outline_width: 5, shadow_width: 10 },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const preview = document.getElementById("kustom-preview-subtitle");
+    const fontPx = parseFloat(preview.style.fontSize);
+    const strokePx = parseFloat(preview.style.webkitTextStroke); // "1.00px #000000"
+    // Outline mentah (5px) jauh lebih tebal dari separuh tinggi font preview --
+    // pastikan sudah discale, bukan device asli langsung dipakai.
+    expect(strokePx).toBeLessThan(fontPx / 2);
+    expect(strokePx).toBeCloseTo(1, 1); // 5 * (1/5) = 1
+  });
+
+  test("preview subtitle tersembunyi saat section Subtitle dimatikan", async () => {
+    mockFetchQueue([
+      CUSTOM_DEFAULT,
+      { ...CUSTOM_DEFAULT, subtitle: { ...CUSTOM_DEFAULT.subtitle, enabled: false } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(document.getElementById("kustom-subtitle-enabled"));
+    await flush();
+
+    expect(document.getElementById("kustom-preview-subtitle")).toHaveAttribute("hidden");
+  });
+});
+
+describe("tab Kustomisasi: Color Grade preset & slider (Fase 1c)", () => {
+  test("klik preset Cinematic mengirim nilai slider lengkap & menandai tombol aktif", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      {
+        ...CUSTOM_DEFAULT,
+        color_grade: {
+          ...CUSTOM_DEFAULT.color_grade,
+          preset: "cinematic",
+          contrast: 1.15,
+          saturation: 0.85,
+          vignette: 0.35,
+        },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(screen.getByRole("button", { name: /^cinematic$/i }));
+    await flush();
+
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    const body = JSON.parse(opts.body);
+    expect(body.color_grade.preset).toBe("cinematic");
+    expect(body.color_grade.vignette).toBe(0.35);
+    expect(screen.getByRole("button", { name: /^cinematic$/i })).toHaveClass("active");
+  });
+
+  test("slider kontras: input update preview instan tanpa PUT, change baru menyimpan", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      { ...CUSTOM_DEFAULT, color_grade: { ...CUSTOM_DEFAULT.color_grade, contrast: 1.4 } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const slider = document.getElementById("kustom-color-grade-contrast");
+    const bg = document.getElementById("kustom-preview-bg");
+    const callsBeforeDrag = fetchMock.mock.calls.length;
+
+    fireEvent.input(slider, { target: { value: "1.4" } });
+    expect(bg.style.filter).toContain("contrast(1.4)");
+    expect(fetchMock.mock.calls.length).toBe(callsBeforeDrag); // belum PUT saat masih drag
+
+    fireEvent.change(slider, { target: { value: "1.4" } });
+    await flush();
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBeforeDrag);
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(JSON.parse(opts.body)).toEqual({ color_grade: { contrast: 1.4 } });
+  });
+
+  test("vignette & suhu ikut menyalakan overlay tint/gelap di preview", async () => {
+    mockFetchQueue([
+      {
+        ...CUSTOM_DEFAULT,
+        color_grade: { ...CUSTOM_DEFAULT.color_grade, temperature: 80, vignette: 1.0 },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const vignetteEl = document.getElementById("kustom-preview-vignette");
+    expect(vignetteEl.style.backgroundImage).toContain("255, 170, 60"); // suhu positif -> tint hangat
+    expect(vignetteEl.style.backgroundImage).toMatch(/rgba\(0, 0, 0, 0\.85\)/);
+  });
+
+  test("suhu negatif pakai tint dingin (biru) di preview", async () => {
+    mockFetchQueue([
+      {
+        ...CUSTOM_DEFAULT,
+        color_grade: { ...CUSTOM_DEFAULT.color_grade, temperature: -80, vignette: 0 },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const vignetteEl = document.getElementById("kustom-preview-vignette");
+    expect(vignetteEl.style.backgroundImage).toContain("60, 160, 255");
   });
 });

@@ -5,10 +5,11 @@ import threading
 import uuid
 from pathlib import Path
 
+from pipeline.color_grade import ColorGradeStyle, build_color_grade_filters
 from pipeline.crop_expr import build_crop_x_expr, build_crop_y_expr
 from pipeline.highlight import Segment
 from pipeline.reframe import CropBox, compute_crop_box
-from pipeline.subtitle import generate_ass
+from pipeline.subtitle import SubtitleStyle, generate_ass
 from pipeline.transcribe import TranscriptWord
 
 
@@ -107,6 +108,8 @@ def render_segment(
     output_height: int = 1920,
     subtitle_enabled: bool = True,
     subtitle_font_size: int = 80,
+    subtitle_style: SubtitleStyle | None = None,
+    color_grade: ColorGradeStyle | None = None,
     encoder: str = "auto",
     crop_path: list[tuple[float, CropBox]] | None = None,
 ) -> Path:
@@ -138,6 +141,10 @@ def render_segment(
         f"scale={output_width}:{output_height}",
     ]
 
+    if color_grade is not None:
+        # Sebelum subtitle: teks yang diburn tak boleh ikut ter-grade.
+        vf_parts.extend(build_color_grade_filters(color_grade))
+
     if subtitle_enabled:
         if _ass_filter_available():
             segment_words = [w for w in words if segment.start <= w.start and w.end <= segment.end]
@@ -149,6 +156,7 @@ def render_segment(
                     font_size=subtitle_font_size,
                     output_width=output_width,
                     output_height=output_height,
+                    style=subtitle_style,
                 )
             )
             vf_parts.append(f"ass=filename={_escape_filter_path(ass_path)}")

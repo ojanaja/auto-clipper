@@ -660,6 +660,161 @@ const CUSTOMIZATION_SECTIONS = [
   "color_grade",
 ];
 
+// Field advanced Subtitle: {key} sesuai nama field backend (SubtitleStyleConfig),
+// {id} elemen form, {type} nentuin cara baca/tulis value-nya.
+const SUBTITLE_FIELDS = [
+  { key: "font", id: "kustom-subtitle-font", type: "text" },
+  { key: "size", id: "kustom-subtitle-size", type: "number" },
+  { key: "align", id: "kustom-subtitle-align", type: "text" },
+  { key: "opacity", id: "kustom-subtitle-opacity", type: "number" },
+  { key: "text_color", id: "kustom-subtitle-text-color", type: "text" },
+  { key: "highlight_color", id: "kustom-subtitle-highlight-color", type: "text" },
+  { key: "outline_color", id: "kustom-subtitle-outline-color", type: "text" },
+  { key: "shadow_color", id: "kustom-subtitle-shadow-color", type: "text" },
+  { key: "outline_width", id: "kustom-subtitle-outline-width", type: "number" },
+  { key: "shadow_width", id: "kustom-subtitle-shadow-width", type: "number" },
+  { key: "background_box", id: "kustom-subtitle-background-box", type: "checkbox" },
+  { key: "pos_x", id: "kustom-subtitle-pos-x", type: "number" },
+  { key: "pos_y", id: "kustom-subtitle-pos-y", type: "number" },
+];
+
+// Preset 6 template subtitle (nilai konkret field advanced di atas). Sumber
+// kebenaran tunggal di frontend -- backend cuma nyimpen/render field konkret
+// yang dikirim, tak perlu tau daftar preset ini (lihat backend/customization.py).
+const SUBTITLE_TEMPLATE_PRESETS = {
+  karaoke_pop: {
+    font: "Arial",
+    text_color: "#FFFFFF",
+    highlight_color: "#FFFF00",
+    outline_color: "#000000",
+    shadow_color: "#000000",
+    outline_width: 4,
+    shadow_width: 2,
+    background_box: false,
+  },
+  hormozi: {
+    font: "Arial Black",
+    text_color: "#FFFFFF",
+    highlight_color: "#22C55E",
+    outline_color: "#000000",
+    shadow_color: "#000000",
+    outline_width: 5,
+    shadow_width: 0,
+    background_box: false,
+  },
+  neon_glow: {
+    font: "Arial",
+    text_color: "#FFFFFF",
+    highlight_color: "#22D3EE",
+    outline_color: "#0E7490",
+    shadow_color: "#0E7490",
+    outline_width: 2,
+    shadow_width: 6,
+    background_box: false,
+  },
+  tiktok_bold: {
+    font: "Arial Black",
+    text_color: "#FFFFFF",
+    highlight_color: "#EF4444",
+    outline_color: "#000000",
+    shadow_color: "#000000",
+    outline_width: 5,
+    shadow_width: 0,
+    background_box: false,
+  },
+  word_punch: {
+    font: "Arial Black",
+    text_color: "#FFFFFF",
+    highlight_color: "#FFEB3B",
+    outline_color: "#000000",
+    shadow_color: "#000000",
+    outline_width: 3,
+    shadow_width: 2,
+    background_box: true,
+  },
+  clean: {
+    font: "Arial",
+    text_color: "#FFFFFF",
+    highlight_color: "#FFFFFF",
+    outline_color: "#000000",
+    shadow_color: "#000000",
+    outline_width: 1,
+    shadow_width: 0,
+    background_box: false,
+  },
+};
+
+// Slider advanced Color Grade: {key} sesuai field backend (ColorGradeConfig).
+const COLOR_GRADE_FIELDS = [
+  { key: "contrast", id: "kustom-color-grade-contrast" },
+  { key: "brightness", id: "kustom-color-grade-brightness" },
+  { key: "saturation", id: "kustom-color-grade-saturation" },
+  { key: "gamma", id: "kustom-color-grade-gamma" },
+  { key: "temperature", id: "kustom-color-grade-temperature" },
+  { key: "vignette", id: "kustom-color-grade-vignette" },
+];
+
+// Preset 7 Color Grade (nilai konkret slider di atas). Sama pola dgn
+// SUBTITLE_TEMPLATE_PRESETS -- sumber kebenaran tunggal di frontend.
+const COLOR_GRADE_PRESETS = {
+  none: {
+    contrast: 1.0,
+    brightness: 0.0,
+    saturation: 1.0,
+    gamma: 1.0,
+    temperature: 0,
+    vignette: 0.0,
+  },
+  cinematic: {
+    contrast: 1.15,
+    brightness: -0.02,
+    saturation: 0.85,
+    gamma: 1.05,
+    temperature: -10,
+    vignette: 0.35,
+  },
+  hangat: {
+    contrast: 1.05,
+    brightness: 0.02,
+    saturation: 1.1,
+    gamma: 1.0,
+    temperature: 40,
+    vignette: 0.1,
+  },
+  dingin: {
+    contrast: 1.05,
+    brightness: 0.0,
+    saturation: 0.95,
+    gamma: 1.0,
+    temperature: -40,
+    vignette: 0.1,
+  },
+  cerah: {
+    contrast: 1.1,
+    brightness: 0.08,
+    saturation: 1.15,
+    gamma: 0.95,
+    temperature: 5,
+    vignette: 0.0,
+  },
+  film: {
+    contrast: 1.1,
+    brightness: -0.03,
+    saturation: 0.8,
+    gamma: 1.08,
+    temperature: 15,
+    vignette: 0.25,
+  },
+  mono: {
+    contrast: 1.1,
+    brightness: 0.0,
+    saturation: 0.0,
+    gamma: 1.0,
+    temperature: 0,
+    vignette: 0.2,
+  },
+};
+
 function setupCustomization(doc) {
   const enabledCheckbox = doc.getElementById("kustom-enabled");
   const statusEl = doc.getElementById("kustom-status");
@@ -669,10 +824,94 @@ function setupCustomization(doc) {
 
   if (!enabledCheckbox) return null;
 
+  let lastSubtitle = {};
+  let lastColorGrade = {};
+
   function setStatus(text, type = "") {
     if (!statusEl) return;
     statusEl.textContent = text;
     statusEl.className = type;
+  }
+
+  function populateSubtitleFields(subtitle) {
+    for (const { key, id, type } of SUBTITLE_FIELDS) {
+      const el = doc.getElementById(id);
+      if (!el) continue;
+      if (type === "checkbox") el.checked = Boolean(subtitle[key]);
+      else el.value = subtitle[key];
+    }
+    const opacityValue = doc.getElementById("kustom-subtitle-opacity-value");
+    if (opacityValue) opacityValue.textContent = `${subtitle.opacity}%`;
+    const outlineValue = doc.getElementById("kustom-subtitle-outline-width-value");
+    if (outlineValue) outlineValue.textContent = subtitle.outline_width;
+    const shadowValue = doc.getElementById("kustom-subtitle-shadow-width-value");
+    if (shadowValue) shadowValue.textContent = subtitle.shadow_width;
+
+    for (const btn of doc.querySelectorAll(".kustom-template-btn")) {
+      btn.classList.toggle("active", btn.dataset.template === subtitle.template);
+    }
+  }
+
+  // Skala canvas pratinjau (168px) vs lebar output render sebenarnya (1080px
+  // default) -- outline/shadow width dikalibrasi buat resolusi render asli,
+  // jadi harus ikut discale sama seperti font, bukan dipakai mentah-mentah
+  // (kalau tidak, outline_width=4-5px di font size ~16px preview jadi blob
+  // gak kebaca sama sekali).
+  const PREVIEW_SCALE = 1 / 5;
+
+  function updateSubtitlePreview(subtitle) {
+    const el = doc.getElementById("kustom-preview-subtitle");
+    if (!el) return;
+    el.hidden = !subtitle.enabled;
+    el.style.left = `${subtitle.pos_x}%`;
+    el.style.top = `${subtitle.pos_y}%`;
+    const alignTranslateX = { left: "0%", center: "-50%", right: "-100%" }[subtitle.align];
+    el.style.transform = `translate(${alignTranslateX ?? "-50%"}, -50%)`;
+    el.style.fontFamily = subtitle.font;
+    el.style.fontSize = `${Math.max(8, Math.round(subtitle.size * PREVIEW_SCALE))}px`;
+    el.style.color = subtitle.text_color;
+    el.style.opacity = String(subtitle.opacity / 100);
+    el.style.webkitTextStroke = `${(subtitle.outline_width * PREVIEW_SCALE).toFixed(2)}px ${subtitle.outline_color}`;
+    el.style.textShadow =
+      subtitle.shadow_width > 0
+        ? `0 0 ${(subtitle.shadow_width * PREVIEW_SCALE).toFixed(2)}px ${subtitle.shadow_color}`
+        : "none";
+    el.style.backgroundColor = subtitle.background_box ? "rgba(0, 0, 0, 0.6)" : "transparent";
+    el.style.padding = subtitle.background_box ? "2px 8px" : "0";
+  }
+
+  function populateColorGradeFields(grade) {
+    for (const { key, id } of COLOR_GRADE_FIELDS) {
+      const el = doc.getElementById(id);
+      if (!el) continue;
+      el.value = grade[key];
+      const valueEl = doc.getElementById(`${id}-value`);
+      if (valueEl) valueEl.textContent = grade[key];
+    }
+    for (const btn of doc.querySelectorAll(".kustom-grade-btn")) {
+      btn.classList.toggle("active", btn.dataset.preset === grade.preset);
+    }
+  }
+
+  function updateColorGradePreview(grade) {
+    const bg = doc.getElementById("kustom-preview-bg");
+    const vignetteEl = doc.getElementById("kustom-preview-vignette");
+    if (!bg || !vignetteEl) return;
+    // CSS filter cuma approximation: contrast()/saturate() 1:1 dgn eq, brightness()
+    // CSS multiplikatif (beda dari eq yg aditif) jadi dikonversi 1+brightness;
+    // gamma tak punya padanan CSS filter (diskip); suhu didekati overlay tint
+    // radial oranye/biru, vignette pakai radial-gradient gelap di tepi.
+    const cssBrightness = Math.max(0, 1 + grade.brightness);
+    bg.style.filter = `contrast(${grade.contrast}) saturate(${grade.saturation}) brightness(${cssBrightness})`;
+
+    const tintAlpha = Math.min(0.35, (Math.abs(grade.temperature) / 100) * 0.35);
+    const tintColor = grade.temperature >= 0 ? "255, 170, 60" : "60, 160, 255";
+    const vignetteAlpha = Math.min(0.85, grade.vignette * 0.85);
+    // backgroundImage (longhand), bukan shorthand "background": jsdom (test) tak
+    // parse shorthand multi-gradient meski browser asli terima dua-duanya.
+    vignetteEl.style.backgroundImage =
+      `radial-gradient(circle, rgba(${tintColor}, ${tintAlpha}) 0%, transparent 45%), ` +
+      `radial-gradient(circle, transparent 45%, rgba(0, 0, 0, ${vignetteAlpha}) 100%)`;
   }
 
   function populate(cfg) {
@@ -683,6 +922,16 @@ function setupCustomization(doc) {
       const on = Boolean(cfg[name] && cfg[name].enabled);
       if (checkbox) checkbox.checked = on;
       if (dot) dot.classList.toggle("on", on);
+    }
+    if (cfg.subtitle) {
+      lastSubtitle = cfg.subtitle;
+      populateSubtitleFields(cfg.subtitle);
+      updateSubtitlePreview(cfg.subtitle);
+    }
+    if (cfg.color_grade) {
+      lastColorGrade = cfg.color_grade;
+      populateColorGradeFields(cfg.color_grade);
+      updateColorGradePreview(cfg.color_grade);
     }
   }
 
@@ -779,6 +1028,83 @@ function setupCustomization(doc) {
         setStatus("Direset ke default", "success");
       } catch {
         setStatus("Gagal mereset", "error");
+      }
+    });
+  }
+
+  function readFieldValue(el, type) {
+    if (type === "checkbox") return el.checked;
+    if (type === "number") return parseFloat(el.value);
+    return el.value;
+  }
+
+  for (const { key, id, type } of SUBTITLE_FIELDS) {
+    const el = doc.getElementById(id);
+    if (!el) continue;
+    // Live: preview ikut gerak instan (termasuk saat slider masih ditarik).
+    el.addEventListener("input", () => {
+      const current = { ...lastSubtitle, [key]: readFieldValue(el, type) };
+      lastSubtitle = current;
+      updateSubtitlePreview(current);
+      if (el.type === "range") {
+        const valueEl = doc.getElementById(`${id}-value`);
+        if (valueEl) valueEl.textContent = key === "opacity" ? `${current[key]}%` : current[key];
+      }
+    });
+    // Persist: baru simpan ke backend saat commit (blur/change), bukan tiap tick drag.
+    el.addEventListener("change", async () => {
+      try {
+        await update({ subtitle: { [key]: readFieldValue(el, type) } });
+        setStatus("Tersimpan", "success");
+      } catch {
+        setStatus("Gagal menyimpan", "error");
+      }
+    });
+  }
+
+  for (const btn of doc.querySelectorAll(".kustom-template-btn")) {
+    btn.addEventListener("click", async () => {
+      const preset = SUBTITLE_TEMPLATE_PRESETS[btn.dataset.template];
+      if (!preset) return;
+      try {
+        await update({ subtitle: { template: btn.dataset.template, ...preset } });
+        setStatus("Template diterapkan", "success");
+      } catch {
+        setStatus("Gagal menerapkan template", "error");
+      }
+    });
+  }
+
+  for (const { key, id } of COLOR_GRADE_FIELDS) {
+    const el = doc.getElementById(id);
+    if (!el) continue;
+    el.addEventListener("input", () => {
+      const value = parseFloat(el.value);
+      const current = { ...lastColorGrade, [key]: value };
+      lastColorGrade = current;
+      updateColorGradePreview(current);
+      const valueEl = doc.getElementById(`${id}-value`);
+      if (valueEl) valueEl.textContent = value;
+    });
+    el.addEventListener("change", async () => {
+      try {
+        await update({ color_grade: { [key]: parseFloat(el.value) } });
+        setStatus("Tersimpan", "success");
+      } catch {
+        setStatus("Gagal menyimpan", "error");
+      }
+    });
+  }
+
+  for (const btn of doc.querySelectorAll(".kustom-grade-btn")) {
+    btn.addEventListener("click", async () => {
+      const preset = COLOR_GRADE_PRESETS[btn.dataset.preset];
+      if (!preset) return;
+      try {
+        await update({ color_grade: { preset: btn.dataset.preset, ...preset } });
+        setStatus("Preset diterapkan", "success");
+      } catch {
+        setStatus("Gagal menerapkan preset", "error");
       }
     });
   }
