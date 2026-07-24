@@ -84,8 +84,7 @@ def _ass_header(
     border_style = 3 if style.background_box else 1
     alignment = _ALIGN_TO_ASS.get(style.align, 5)
     return (
-        header
-        + f"Style: Default,{style.font},{font_size},{primary},{secondary},{outline},{back},"
+        header + f"Style: Default,{style.font},{font_size},{primary},{secondary},{outline},{back},"
         f"{bold},0,0,0,100,100,0,0,{border_style},{style.outline_width},{style.shadow_width},"
         f"{alignment},0,0,0,1\n"
         "\n[Events]\n"
@@ -116,30 +115,19 @@ def join_words(words: list[TranscriptWord]) -> str:
     return "".join(parts)
 
 
-def generate_ass(
+def _generate_karaoke_events(
     words: list[TranscriptWord],
     segment_start: float,
-    font_size: int = 80,
-    output_width: int = 1080,
-    output_height: int = 1920,
-    style: SubtitleStyle | None = None,
+    output_width: int,
+    output_height: int,
+    style: SubtitleStyle | None,
 ) -> str:
-    """Generate isi file .ass dengan highlight karaoke kata-per-kata.
-
-    Timestamp kata bersifat absolut terhadap video sumber; segment_start dipakai
-    untuk menggeser semua waktu jadi relatif terhadap awal klip yang sudah dipotong.
-
-    style=None -> tampilan lama (dipakai saat tab Kustomisasi/section Subtitle
-    nonaktif, lihat _ass_header). style diberikan -> posisi dikontrol lewat
-    override \\pos() per baris (ikut style.pos_x/pos_y), bukan MarginV statis,
-    supaya bisa digeser bebas nanti dari canvas kustomisasi.
-    """
-    lines = [_ass_header(font_size, output_width, output_height, style)]
     pos_tag = ""
     if style is not None:
         x_px = round(output_width * style.pos_x / 100)
         y_px = round(output_height * style.pos_y / 100)
         pos_tag = f"{{\\pos({x_px},{y_px})}}"
+    lines = []
     for i in range(0, len(words), _WORDS_PER_LINE):
         group = words[i : i + _WORDS_PER_LINE]
         line_start = group[0].start - segment_start
@@ -162,6 +150,29 @@ def generate_ass(
             f"Default,,0,0,0,,{''.join(parts)}\n"
         )
     return "".join(lines)
+
+
+def generate_ass(
+    words: list[TranscriptWord],
+    segment_start: float,
+    font_size: int = 80,
+    output_width: int = 1080,
+    output_height: int = 1920,
+    style: SubtitleStyle | None = None,
+) -> str:
+    """Generate isi file .ass dengan highlight karaoke kata-per-kata.
+
+    Timestamp kata bersifat absolut terhadap video sumber; segment_start dipakai
+    untuk menggeser semua waktu jadi relatif terhadap awal klip yang sudah dipotong.
+
+    style=None -> tampilan lama (dipakai saat tab Kustomisasi/section Subtitle
+    nonaktif, lihat _ass_header). style diberikan -> posisi dikontrol lewat
+    override \\pos() per baris (ikut style.pos_x/pos_y), bukan MarginV statis,
+    supaya bisa digeser bebas nanti dari canvas kustomisasi.
+    """
+    header = _ass_header(font_size, output_width, output_height, style)
+    events = _generate_karaoke_events(words, segment_start, output_width, output_height, style)
+    return header + events
 
 
 def burn_subtitle(video_path: Path, ass_path: Path, output_path: Path) -> None:

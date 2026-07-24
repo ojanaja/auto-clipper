@@ -8,8 +8,14 @@ from pathlib import Path
 from pipeline.color_grade import ColorGradeStyle, build_color_grade_filters
 from pipeline.crop_expr import build_crop_x_expr, build_crop_y_expr
 from pipeline.highlight import Segment
+from pipeline.overlay import (
+    ImageOverlayStyle,
+    TextOverlayStyle,
+    build_image_overlay_filter,
+    build_text_overlay_event,
+)
 from pipeline.reframe import CropBox, compute_crop_box
-from pipeline.subtitle import SubtitleStyle, generate_ass
+from pipeline.subtitle import SubtitleStyle, _ass_header, _generate_karaoke_events
 from pipeline.transcribe import TranscriptWord
 
 
@@ -26,12 +32,8 @@ def _ass_filter_available() -> bool:
     if _ASS_FILTER_AVAILABLE is not None:
         return _ASS_FILTER_AVAILABLE
     try:
-        result = subprocess.run(
-            ["ffmpeg", "-filters"], capture_output=True, text=True, timeout=10
-        )
-        _ASS_FILTER_AVAILABLE = bool(
-            re.search(r"^\s*\S+\s+\bass\b", result.stdout, re.MULTILINE)
-        )
+        result = subprocess.run(["ffmpeg", "-filters"], capture_output=True, text=True, timeout=10)
+        _ASS_FILTER_AVAILABLE = bool(re.search(r"^\s*\S+\s+\bass\b", result.stdout, re.MULTILINE))
     except Exception:
         _ASS_FILTER_AVAILABLE = False
     return _ASS_FILTER_AVAILABLE
@@ -110,6 +112,9 @@ def render_segment(
     subtitle_font_size: int = 80,
     subtitle_style: SubtitleStyle | None = None,
     color_grade: ColorGradeStyle | None = None,
+    watermark_style: TextOverlayStyle | None = None,
+    overlay_sumber_style: TextOverlayStyle | None = None,
+    image_overlay: ImageOverlayStyle | None = None,
     encoder: str = "auto",
     crop_path: list[tuple[float, CropBox]] | None = None,
 ) -> Path:
@@ -145,46 +150,112 @@ def render_segment(
         # Sebelum subtitle: teks yang diburn tak boleh ikut ter-grade.
         vf_parts.extend(build_color_grade_filters(color_grade))
 
-    if subtitle_enabled:
+    # Subtitle karaoke, watermark, dan overlay sumber semua dirender lewat satu
+    # file .ass yang sama (satu filter 'ass' saja) -- watermark/sumber cuma
+    # teks statis sepanjang klip, jadi dipakai override tag per baris, bukan
+    # style [V4+ Styles] terpisah (lihat pipeline/overlay.py).
+    ass_filter_str = None
+    ass_needed = subtitle_enabled or watermark_style is not None or overlay_sumber_style is not None
+    if ass_needed:
         if _ass_filter_available():
-            segment_words = [w for w in words if segment.start <= w.start and w.end <= segment.end]
             ass_path = Path(work_dir) / f"sub_{uuid.uuid4().hex[:8]}.ass"
-            ass_path.write_text(
-                generate_ass(
-                    segment_words,
-                    segment_start=segment.start,
-                    font_size=subtitle_font_size,
-                    output_width=output_width,
-                    output_height=output_height,
-                    style=subtitle_style,
+            content = _ass_header(subtitle_font_size, output_width, output_height, subtitle_style)
+            if subtitle_enabled:
+                segment_words = [
+                    w for w in words if segment.start <= w.start and w.end <= segment.end
+                ]
+                content += _generate_karaoke_events(
+                    segment_words, segment.start, output_width, output_height, subtitle_style
                 )
-            )
-            vf_parts.append(f"ass=filename={_escape_filter_path(ass_path)}")
+            duration = segment.end - segment.start
+            if watermark_style is not None:
+                content += build_text_overlay_event(
+                    watermark_style, duration, output_width, output_height
+                )
+            if overlay_sumber_style is not None:
+                content += build_text_overlay_event(
+                    overlay_sumber_style, duration, output_width, output_height
+                )
+            ass_path.write_text(content)
+            ass_filter_str = f"ass=filename={_escape_filter_path(ass_path)}"
         else:
             print(
                 "WARNING: ffmpeg build ini tidak mendukung filter 'ass' (libass); "
-                "subtitle tidak diburn.",
+                "subtitle/watermark/overlay sumber tidak diburn.",
                 file=sys.stderr,
                 flush=True,
             )
 
-    vf = ",".join(vf_parts)
+    image_path = (
+        Path(image_overlay.image_path) if image_overlay and image_overlay.image_path else None
+    )
+    use_image_overlay = image_path is not None and image_path.exists()
+    if image_overlay is not None and image_overlay.image_path and not use_image_overlay:
+        print(
+            f"WARNING: file overlay gambar tidak ditemukan: {image_overlay.image_path}",
+            file=sys.stderr,
+            flush=True,
+        )
+
     video_codec = _resolve_encoder(encoder)
 
     cmd = ["ffmpeg", "-y"]
     if progress_cb is not None:
         # Streaming progress ke stdout; matikan stats agar tak mengotori parse.
         cmd += ["-progress", "pipe:1", "-nostats"]
-    cmd += [
-        "-ss",
-        str(segment.start),
-        "-to",
-        str(segment.end),
-        "-i",
-        str(source_path),
-        "-vf",
-        vf,
-    ]
+
+    if use_image_overlay:
+        # Dua input (video + gambar) -> filter_complex, beda dari jalur -vf
+        # satu-input di bawah. Gambar di-loop (-loop 1) supaya persist sepanjang
+        # durasi klip, bukan cuma 1 frame lalu overlay-nya hilang.
+        logo_chain, overlay_expr = build_image_overlay_filter(
+            image_overlay, output_width, output_height
+        )
+        base_chain = ",".join(vf_parts)
+        filter_complex = (
+            f"[0:v]{base_chain}[base];[1:v]{logo_chain}[logo];[base][logo]{overlay_expr}[merged]"
+        )
+        final_label = "[merged]"
+        if ass_filter_str is not None:
+            filter_complex += f";[merged]{ass_filter_str}[outv]"
+            final_label = "[outv]"
+        cmd += [
+            "-ss",
+            str(segment.start),
+            "-to",
+            str(segment.end),
+            "-i",
+            str(source_path),
+            "-loop",
+            "1",
+            "-i",
+            str(image_path),
+            "-filter_complex",
+            filter_complex,
+            "-map",
+            final_label,
+            "-map",
+            "0:a?",
+            # Gambar di-loop tanpa batas (tak pernah EOF) -- tanpa -shortest,
+            # encode tak pernah berhenti karena durasi output ikut input
+            # terpanjang. Ini yang membatasi ke durasi video utama.
+            "-shortest",
+        ]
+    else:
+        if ass_filter_str is not None:
+            vf_parts.append(ass_filter_str)
+        vf = ",".join(vf_parts)
+        cmd += [
+            "-ss",
+            str(segment.start),
+            "-to",
+            str(segment.end),
+            "-i",
+            str(source_path),
+            "-vf",
+            vf,
+        ]
+
     if video_codec is not None:
         cmd += ["-c:v", video_codec]
     cmd += ["-c:a", "aac", "-pix_fmt", "yuv420p", str(output_path)]
@@ -206,9 +277,7 @@ def render_segment(
     # seluruh proses freeze ("stuck" di 0%). Drain stderr di thread terpisah
     # biar gak deadlock.
     stderr_lines: list[str] = []
-    stderr_thread = threading.Thread(
-        target=lambda: stderr_lines.extend(proc.stderr), daemon=True
-    )
+    stderr_thread = threading.Thread(target=lambda: stderr_lines.extend(proc.stderr), daemon=True)
     stderr_thread.start()
 
     for line in proc.stdout:

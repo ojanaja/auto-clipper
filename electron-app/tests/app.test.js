@@ -28,9 +28,37 @@ const CUSTOM_DEFAULT = {
     pos_x: 50,
     pos_y: 70,
   },
-  overlay_sumber: { enabled: false },
-  watermark: { enabled: false },
-  overlay_gambar: { enabled: false },
+  overlay_sumber: {
+    enabled: false,
+    text: "Sumber: @channel",
+    font: "Arial",
+    size: 32,
+    color: "#FFFFFF",
+    opacity: 90,
+    pos_x: 50,
+    pos_y: 95,
+    rotate: 0.0,
+  },
+  watermark: {
+    enabled: false,
+    text: "AutoClip",
+    font: "Arial",
+    size: 32,
+    color: "#FFFFFF",
+    opacity: 25,
+    pos_x: 50,
+    pos_y: 50,
+    rotate: -30.0,
+  },
+  overlay_gambar: {
+    enabled: false,
+    image_path: "",
+    size: 20,
+    opacity: 100,
+    rotate: 0.0,
+    pos_x: 85,
+    pos_y: 12,
+  },
   color_grade: {
     enabled: false,
     preset: "none",
@@ -659,7 +687,13 @@ describe("tab navigasi utama", () => {
 
 describe("tab Kustomisasi: preset kerangka (Fase 1a)", () => {
   test("membuka tab memuat config dari GET /customization", async () => {
-    mockFetchQueue([{ ...CUSTOM_DEFAULT, enabled: true, watermark: { enabled: true } }]);
+    mockFetchQueue([
+      {
+        ...CUSTOM_DEFAULT,
+        enabled: true,
+        watermark: { ...CUSTOM_DEFAULT.watermark, enabled: true },
+      },
+    ]);
     loadApp();
 
     await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
@@ -690,7 +724,7 @@ describe("tab Kustomisasi: preset kerangka (Fase 1a)", () => {
   test("toggle section Overlay Gambar mengirim payload section & menyalakan dot", async () => {
     const fetchMock = mockFetchQueue([
       CUSTOM_DEFAULT,
-      { ...CUSTOM_DEFAULT, overlay_gambar: { enabled: true } },
+      { ...CUSTOM_DEFAULT, overlay_gambar: { ...CUSTOM_DEFAULT.overlay_gambar, enabled: true } },
     ]);
     loadApp();
     await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
@@ -759,7 +793,11 @@ describe("tab Kustomisasi: preset kerangka (Fase 1a)", () => {
 
   test("Reset mengembalikan preset ke default via POST /customization/reset", async () => {
     mockFetchQueue([
-      { ...CUSTOM_DEFAULT, enabled: true, watermark: { enabled: true } },
+      {
+        ...CUSTOM_DEFAULT,
+        enabled: true,
+        watermark: { ...CUSTOM_DEFAULT.watermark, enabled: true },
+      },
       CUSTOM_DEFAULT,
     ]);
     loadApp();
@@ -980,5 +1018,173 @@ describe("tab Kustomisasi: Color Grade preset & slider (Fase 1c)", () => {
 
     const vignetteEl = document.getElementById("kustom-preview-vignette");
     expect(vignetteEl.style.backgroundImage).toContain("60, 160, 255");
+  });
+});
+
+describe("tab Kustomisasi: Watermark & Overlay Sumber (Fase 1d)", () => {
+  test("ubah teks watermark: input update preview instan tanpa PUT, change baru menyimpan", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      { ...CUSTOM_DEFAULT, watermark: { ...CUSTOM_DEFAULT.watermark, text: "Klip Keren" } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const textInput = document.getElementById("kustom-watermark-text");
+    const preview = document.getElementById("kustom-preview-watermark");
+    const callsBefore = fetchMock.mock.calls.length;
+
+    fireEvent.input(textInput, { target: { value: "Klip Keren" } });
+    expect(preview.textContent).toBe("Klip Keren");
+    expect(fetchMock.mock.calls.length).toBe(callsBefore); // belum PUT saat masih ngetik
+
+    fireEvent.change(textInput, { target: { value: "Klip Keren" } });
+    await flush();
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(JSON.parse(opts.body)).toEqual({ watermark: { text: "Klip Keren" } });
+  });
+
+  test("preview watermark pakai rotate dari style & tersembunyi saat section nonaktif", async () => {
+    mockFetchQueue([
+      { ...CUSTOM_DEFAULT, watermark: { ...CUSTOM_DEFAULT.watermark, enabled: true } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const preview = document.getElementById("kustom-preview-watermark");
+    expect(preview).not.toHaveAttribute("hidden");
+    expect(preview.style.transform).toContain("rotate(-30deg)");
+    expect(preview.textContent).toBe("AutoClip");
+  });
+
+  test("toggle Aktifkan Watermark mematikan section menyembunyikan preview", async () => {
+    mockFetchQueue([
+      { ...CUSTOM_DEFAULT, watermark: { ...CUSTOM_DEFAULT.watermark, enabled: true } },
+      { ...CUSTOM_DEFAULT, watermark: { ...CUSTOM_DEFAULT.watermark, enabled: false } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(document.getElementById("kustom-watermark-enabled"));
+    await flush();
+
+    expect(document.getElementById("kustom-preview-watermark")).toHaveAttribute("hidden");
+  });
+
+  test("ubah warna Overlay Sumber mengirim PUT ke section yang benar", async () => {
+    const fetchMock = mockFetchQueue([
+      CUSTOM_DEFAULT,
+      {
+        ...CUSTOM_DEFAULT,
+        overlay_sumber: { ...CUSTOM_DEFAULT.overlay_sumber, color: "#112233" },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const colorInput = document.getElementById("kustom-overlay_sumber-color");
+    fireEvent.input(colorInput, { target: { value: "#112233" } });
+    fireEvent.change(colorInput, { target: { value: "#112233" } });
+    await flush();
+
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(JSON.parse(opts.body)).toEqual({ overlay_sumber: { color: "#112233" } });
+    expect(document.getElementById("kustom-preview-overlay_sumber").style.color).toBe(
+      "rgb(17, 34, 51)"
+    );
+  });
+});
+
+describe("tab Kustomisasi: Overlay Gambar (Fase 1d)", () => {
+  test("slider ukuran: input update lebar preview instan tanpa PUT, change baru menyimpan", async () => {
+    const fetchMock = mockFetchQueue([
+      { ...CUSTOM_DEFAULT, overlay_gambar: { ...CUSTOM_DEFAULT.overlay_gambar, enabled: true } },
+      {
+        ...CUSTOM_DEFAULT,
+        overlay_gambar: { ...CUSTOM_DEFAULT.overlay_gambar, enabled: true, size: 40 },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const slider = document.getElementById("kustom-overlay_gambar-size");
+    const preview = document.getElementById("kustom-preview-image");
+    const callsBefore = fetchMock.mock.calls.length;
+
+    fireEvent.input(slider, { target: { value: "40" } });
+    expect(preview.style.width).toBe("40%");
+    expect(fetchMock.mock.calls.length).toBe(callsBefore);
+
+    fireEvent.change(slider, { target: { value: "40" } });
+    await flush();
+    const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(JSON.parse(opts.body)).toEqual({ overlay_gambar: { size: 40 } });
+  });
+
+  test("tombol Pilih Gambar memanggil dialog file lalu menyimpan image_path", async () => {
+    window.autoclip = {
+      selectOverlayImage: jest.fn().mockResolvedValue("/Users/x/logo.png"),
+    };
+    mockFetchQueue([
+      CUSTOM_DEFAULT,
+      {
+        ...CUSTOM_DEFAULT,
+        overlay_gambar: {
+          ...CUSTOM_DEFAULT.overlay_gambar,
+          enabled: true,
+          image_path: "/Users/x/logo.png",
+        },
+      },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    await userEvent.click(screen.getByRole("button", { name: /pilih gambar/i }));
+    await flush();
+
+    expect(window.autoclip.selectOverlayImage).toHaveBeenCalled();
+    expect(document.getElementById("kustom-overlay_gambar-path-label").textContent).toBe(
+      "/Users/x/logo.png"
+    );
+    const preview = document.getElementById("kustom-preview-image");
+    expect(preview.src).toContain("file:///Users/x/logo.png");
+    expect(preview).not.toHaveAttribute("hidden");
+    delete window.autoclip;
+  });
+
+  test("dialog Pilih Gambar dibatalkan (return null) tidak mengubah apa pun", async () => {
+    window.autoclip = { selectOverlayImage: jest.fn().mockResolvedValue(null) };
+    const fetchMock = mockFetchQueue([CUSTOM_DEFAULT]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    const callsBefore = fetchMock.mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: /pilih gambar/i }));
+    await flush();
+
+    expect(fetchMock.mock.calls.length).toBe(callsBefore);
+    delete window.autoclip;
+  });
+
+  test("gambar belum dipilih -> preview tersembunyi meski section aktif", async () => {
+    mockFetchQueue([
+      { ...CUSTOM_DEFAULT, overlay_gambar: { ...CUSTOM_DEFAULT.overlay_gambar, enabled: true } },
+    ]);
+    loadApp();
+    await userEvent.click(screen.getByRole("tab", { name: /kustomisasi/i }));
+    await flush();
+
+    expect(document.getElementById("kustom-preview-image")).toHaveAttribute("hidden");
+    expect(document.getElementById("kustom-overlay_gambar-path-label").textContent).toBe(
+      "Belum ada gambar dipilih"
+    );
   });
 });

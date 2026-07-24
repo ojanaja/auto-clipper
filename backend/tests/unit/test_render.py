@@ -261,6 +261,134 @@ def test_render_segment_1_1_ratio(mocker, tmp_path):
     assert "crop=1080:1080:420:0" in vf
 
 
+def test_render_segment_watermark_and_sumber_share_one_ass_file(mocker, tmp_path):
+    from pipeline.overlay import TextOverlayStyle
+
+    _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        subtitle_enabled=False,
+        watermark_style=TextOverlayStyle(
+            text="AutoClip", font="Arial", size=40, color="#FFFFFF", opacity=25, pos_x=50, pos_y=50
+        ),
+        overlay_sumber_style=TextOverlayStyle(
+            text="Sumber: @chan",
+            font="Arial",
+            size=32,
+            color="#FFFFFF",
+            opacity=90,
+            pos_x=50,
+            pos_y=95,
+        ),
+    )
+    ass_files = list(tmp_path.glob("*.ass"))
+    assert len(ass_files) == 1
+    content = ass_files[0].read_text()
+    assert "AutoClip" in content
+    assert "Sumber: @chan" in content
+
+
+def test_render_segment_no_overlay_text_no_ass_file(mocker, tmp_path):
+    _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        subtitle_enabled=False,
+        watermark_style=None,
+        overlay_sumber_style=None,
+    )
+    assert len(list(tmp_path.glob("*.ass"))) == 0
+
+
+def test_render_segment_image_overlay_uses_filter_complex(mocker, tmp_path):
+    from pipeline.overlay import ImageOverlayStyle
+
+    calls = _fake_run_factory(mocker)
+    logo = tmp_path / "logo.png"
+    logo.write_bytes(b"fake-png")
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        subtitle_enabled=False,
+        image_overlay=ImageOverlayStyle(
+            image_path=str(logo), size=20, opacity=100, rotate=0.0, pos_x=85, pos_y=12
+        ),
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg" and "-ss" in c)
+    assert "-vf" not in ffmpeg_cmd
+    assert "-filter_complex" in ffmpeg_cmd
+    assert "-loop" in ffmpeg_cmd and "1" in ffmpeg_cmd
+    assert "-shortest" in ffmpeg_cmd  # gambar di-loop tanpa EOF, wajib dibatasi -shortest
+    assert "-map" in ffmpeg_cmd
+    assert "[merged]" in ffmpeg_cmd
+    assert "0:a?" in ffmpeg_cmd
+    filter_complex = ffmpeg_cmd[ffmpeg_cmd.index("-filter_complex") + 1]
+    assert "[0:v]" in filter_complex and "[1:v]" in filter_complex
+    assert "overlay=x=" in filter_complex
+
+
+def test_render_segment_image_overlay_missing_file_falls_back_to_vf(mocker, tmp_path, capsys):
+    from pipeline.overlay import ImageOverlayStyle
+
+    calls = _fake_run_factory(mocker)
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        subtitle_enabled=False,
+        image_overlay=ImageOverlayStyle(
+            image_path=str(tmp_path / "tidak-ada.png"),
+            size=20,
+            opacity=100,
+            rotate=0.0,
+            pos_x=85,
+            pos_y=12,
+        ),
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg" and "-ss" in c)
+    assert "-vf" in ffmpeg_cmd
+    assert "-filter_complex" not in ffmpeg_cmd
+    assert "tidak ditemukan" in capsys.readouterr().err
+
+
+def test_render_segment_image_overlay_chains_ass_after_overlay(mocker, tmp_path):
+    from pipeline.overlay import ImageOverlayStyle, TextOverlayStyle
+
+    calls = _fake_run_factory(mocker)
+    logo = tmp_path / "logo.png"
+    logo.write_bytes(b"fake-png")
+    render_segment(
+        "source.mp4",
+        SEGMENT,
+        WORDS,
+        tmp_path / "c.mp4",
+        work_dir=tmp_path,
+        image_overlay=ImageOverlayStyle(
+            image_path=str(logo), size=20, opacity=100, rotate=0.0, pos_x=85, pos_y=12
+        ),
+        watermark_style=TextOverlayStyle(
+            text="AutoClip", font="Arial", size=40, color="#FFFFFF", opacity=25, pos_x=50, pos_y=50
+        ),
+    )
+    ffmpeg_cmd = next(c for c in calls if c[0] == "ffmpeg" and "-ss" in c)
+    filter_complex = ffmpeg_cmd[ffmpeg_cmd.index("-filter_complex") + 1]
+    assert "[merged]ass=filename=" in filter_complex
+    assert filter_complex.rstrip().endswith("[outv]")
+    assert "[outv]" in ffmpeg_cmd  # final -map target
+
+
 def test_render_segment_no_subtitle(mocker, tmp_path):
     calls = _fake_run_factory(mocker)
     render_segment(

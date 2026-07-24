@@ -194,8 +194,7 @@ def test_analysis_forwards_live_download_progress(manager, broadcaster, deps):
     captured["cb"](42, "5 MB / 12 MB")
     events = [c.args[1] for c in broadcaster.publish.call_args_list]
     assert any(
-        e["stage"] == "downloading" and e["progress"] == 42 and "MB" in e["message"]
-        for e in events
+        e["stage"] == "downloading" and e["progress"] == 42 and "MB" in e["message"] for e in events
     )
 
 
@@ -573,9 +572,7 @@ def test_render_uses_customization_subtitle_style_when_enabled(
     assert style.background_box is True
 
 
-def test_render_color_grade_none_when_customization_disabled(
-    manager, broadcaster, deps, tmp_path
-):
+def test_render_color_grade_none_when_customization_disabled(manager, broadcaster, deps, tmp_path):
     from customization import CustomizationConfig
 
     deps["customization_provider"] = lambda: CustomizationConfig()  # enabled=False (default)
@@ -622,6 +619,141 @@ def test_render_uses_customization_color_grade_when_enabled(manager, broadcaster
     assert style.contrast == 1.3
     assert style.temperature == 40
     assert style.vignette == 0.5
+
+
+def test_render_watermark_style_none_when_customization_disabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    deps["customization_provider"] = lambda: CustomizationConfig()  # enabled=False (default)
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["watermark_style"] is None
+
+
+def test_render_watermark_style_none_when_master_on_but_section_off(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.watermark.enabled = False
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["watermark_style"] is None
+
+
+def test_render_uses_customization_watermark_style_when_enabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.watermark.enabled = True
+    cfg.watermark.text = "Klip Keren"
+    cfg.watermark.rotate = -15.0
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    style = deps["render_fn"].call_args.kwargs["watermark_style"]
+    assert style is not None
+    assert style.text == "Klip Keren"
+    assert style.rotate == -15.0
+
+
+def test_render_overlay_sumber_style_none_when_customization_disabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    deps["customization_provider"] = lambda: CustomizationConfig()  # enabled=False (default)
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["overlay_sumber_style"] is None
+
+
+def test_render_uses_customization_overlay_sumber_style_when_enabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.overlay_sumber.enabled = True
+    cfg.overlay_sumber.text = "Sumber: @creator"
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    style = deps["render_fn"].call_args.kwargs["overlay_sumber_style"]
+    assert style is not None
+    assert style.text == "Sumber: @creator"
+
+
+def test_render_image_overlay_none_when_customization_disabled(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    deps["customization_provider"] = lambda: CustomizationConfig()  # enabled=False (default)
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["image_overlay"] is None
+
+
+def test_render_image_overlay_none_when_master_on_but_section_off(
+    manager, broadcaster, deps, tmp_path
+):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.overlay_gambar.enabled = False
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    assert deps["render_fn"].call_args.kwargs["image_overlay"] is None
+
+
+def test_render_uses_customization_image_overlay_when_enabled(manager, broadcaster, deps, tmp_path):
+    from customization import CustomizationConfig
+
+    cfg = CustomizationConfig(enabled=True)
+    cfg.overlay_gambar.enabled = True
+    cfg.overlay_gambar.image_path = "/path/logo.png"
+    cfg.overlay_gambar.size = 30
+    cfg.overlay_gambar.rotate = 10.0
+    deps["customization_provider"] = lambda: cfg
+    job = _ready_job(manager, deps, broadcaster)
+    _orchestrator(manager, broadcaster, deps).run_render(
+        job.job_id, segment_ids=["0"], output_dir=tmp_path
+    )
+
+    style = deps["render_fn"].call_args.kwargs["image_overlay"]
+    assert style is not None
+    assert style.image_path == "/path/logo.png"
+    assert style.size == 30
+    assert style.rotate == 10.0
 
 
 def test_render_face_tracking_passes_crop_path(manager, broadcaster, deps, tmp_path, monkeypatch):

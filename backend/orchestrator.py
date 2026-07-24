@@ -6,7 +6,13 @@ from pathlib import Path
 import anthropic
 
 from config import load_config, resolve_output_dir
-from customization import ColorGradeConfig, SubtitleStyleConfig, load_customization
+from customization import (
+    ColorGradeConfig,
+    OverlayGambarConfig,
+    SubtitleStyleConfig,
+    TextOverlayConfig,
+    load_customization,
+)
 from job_manager import JobManager, JobStatus
 from pipeline.color_grade import ColorGradeStyle
 from pipeline.crop_path import build_crop_path
@@ -14,6 +20,7 @@ from pipeline.download import InvalidURLError, VideoUnavailableError, download_v
 from pipeline.face_detect import detect_faces_sampled, sample_frames
 from pipeline.highlight import find_highlights
 from pipeline.llm_client import LLMAuthError, make_llm_client
+from pipeline.overlay import ImageOverlayStyle, TextOverlayStyle
 from pipeline.render import probe_dimensions, render_segment
 from pipeline.speaker import build_active_timeline, compute_motion_scores
 from pipeline.subtitle import SubtitleStyle
@@ -33,6 +40,35 @@ def _build_color_grade_style(grade_cfg: ColorGradeConfig) -> ColorGradeStyle:
         gamma=grade_cfg.gamma,
         temperature=grade_cfg.temperature,
         vignette=grade_cfg.vignette,
+    )
+
+
+def _build_text_overlay_style(cfg: TextOverlayConfig) -> TextOverlayStyle:
+    """Petakan section Watermark/Overlay Sumber ke style render.
+
+    Sama pola dgn _build_color_grade_style/_build_subtitle_style: cuma dipanggil
+    saat section-nya aktif; kalau tidak, render_segment terima None -> teks
+    tak diburn sama sekali."""
+    return TextOverlayStyle(
+        text=cfg.text,
+        font=cfg.font,
+        size=cfg.size,
+        color=cfg.color,
+        opacity=cfg.opacity,
+        pos_x=cfg.pos_x,
+        pos_y=cfg.pos_y,
+        rotate=cfg.rotate,
+    )
+
+
+def _build_image_overlay_style(cfg: OverlayGambarConfig) -> ImageOverlayStyle:
+    return ImageOverlayStyle(
+        image_path=cfg.image_path,
+        size=cfg.size,
+        opacity=cfg.opacity,
+        rotate=cfg.rotate,
+        pos_x=cfg.pos_x,
+        pos_y=cfg.pos_y,
     )
 
 
@@ -56,6 +92,7 @@ def _build_subtitle_style(subtitle_cfg: SubtitleStyleConfig) -> SubtitleStyle:
         pos_x=subtitle_cfg.pos_x,
         pos_y=subtitle_cfg.pos_y,
     )
+
 
 # Kesalahan yang PASTI gagal lagi kalau diulang tanpa user memperbaiki
 # sesuatu (URL salah, video privat, API key ditolak/belum diset) -> jangan
@@ -297,6 +334,18 @@ class PipelineOrchestrator:
             if customization.enabled and customization.color_grade.enabled:
                 color_grade_style = _build_color_grade_style(customization.color_grade)
 
+            watermark_style = None
+            if customization.enabled and customization.watermark.enabled:
+                watermark_style = _build_text_overlay_style(customization.watermark)
+
+            overlay_sumber_style = None
+            if customization.enabled and customization.overlay_sumber.enabled:
+                overlay_sumber_style = _build_text_overlay_style(customization.overlay_sumber)
+
+            image_overlay_style = None
+            if customization.enabled and customization.overlay_gambar.enabled:
+                image_overlay_style = _build_image_overlay_style(customization.overlay_gambar)
+
             frame_w, frame_h = 0, 0
             if face_tracking_enabled and job.video_path:
                 try:
@@ -384,6 +433,9 @@ class PipelineOrchestrator:
                         subtitle_font_size=cfg.subtitle_font_size,
                         subtitle_style=subtitle_style,
                         color_grade=color_grade_style,
+                        watermark_style=watermark_style,
+                        overlay_sumber_style=overlay_sumber_style,
+                        image_overlay=image_overlay_style,
                         encoder=cfg.encoder,
                         crop_path=crop_path,
                     )

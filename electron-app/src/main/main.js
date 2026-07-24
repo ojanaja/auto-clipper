@@ -101,6 +101,14 @@ app.whenReady().then(() => {
       throw new Error("File preset tidak valid (bukan JSON yang benar)");
     }
   });
+  ipcMain.handle("select-overlay-image", async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(win, {
+      properties: ["openFile"],
+      filters: [{ name: "Gambar", extensions: ["png", "jpg", "jpeg", "webp"] }],
+    });
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+  });
   ipcMain.handle("export-customization-preset", async (_event, data) => {
     const win = BrowserWindow.getFocusedWindow();
     const result = await dialog.showSaveDialog(win, {

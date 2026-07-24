@@ -815,6 +815,38 @@ const COLOR_GRADE_PRESETS = {
   },
 };
 
+// Field Watermark & Overlay Sumber: bentuknya identik (teks statis sepanjang
+// klip), cuma beda nama section & default -- satu builder dipakai buat
+// dua-duanya (lihat backend/customization.py TextOverlayConfig).
+function textOverlayFields(section) {
+  return [
+    { key: "text", id: `kustom-${section}-text`, type: "text" },
+    { key: "font", id: `kustom-${section}-font`, type: "text" },
+    { key: "size", id: `kustom-${section}-size`, type: "number" },
+    { key: "color", id: `kustom-${section}-color`, type: "text" },
+    { key: "opacity", id: `kustom-${section}-opacity`, type: "number" },
+    { key: "rotate", id: `kustom-${section}-rotate`, type: "number" },
+    { key: "pos_x", id: `kustom-${section}-pos-x`, type: "number" },
+    { key: "pos_y", id: `kustom-${section}-pos-y`, type: "number" },
+  ];
+}
+
+const TEXT_OVERLAY_SECTIONS = {
+  watermark: textOverlayFields("watermark"),
+  overlay_sumber: textOverlayFields("overlay_sumber"),
+};
+
+// Field advanced Overlay Gambar: {key} sesuai field backend (OverlayGambarConfig).
+// image_path ditangani terpisah lewat tombol "Pilih Gambar" (IPC dialog file),
+// bukan input teks biasa.
+const OVERLAY_GAMBAR_FIELDS = [
+  { key: "size", id: "kustom-overlay_gambar-size" },
+  { key: "opacity", id: "kustom-overlay_gambar-opacity" },
+  { key: "rotate", id: "kustom-overlay_gambar-rotate" },
+  { key: "pos_x", id: "kustom-overlay_gambar-pos-x" },
+  { key: "pos_y", id: "kustom-overlay_gambar-pos-y" },
+];
+
 function setupCustomization(doc) {
   const enabledCheckbox = doc.getElementById("kustom-enabled");
   const statusEl = doc.getElementById("kustom-status");
@@ -826,6 +858,8 @@ function setupCustomization(doc) {
 
   let lastSubtitle = {};
   let lastColorGrade = {};
+  let lastTextOverlay = { watermark: {}, overlay_sumber: {} };
+  let lastOverlayGambar = {};
 
   function setStatus(text, type = "") {
     if (!statusEl) return;
@@ -914,6 +948,65 @@ function setupCustomization(doc) {
       `radial-gradient(circle, transparent 45%, rgba(0, 0, 0, ${vignetteAlpha}) 100%)`;
   }
 
+  function populateTextOverlayFields(section, data) {
+    for (const { key, id, type } of TEXT_OVERLAY_SECTIONS[section]) {
+      const el = doc.getElementById(id);
+      if (!el) continue;
+      if (type === "checkbox") el.checked = Boolean(data[key]);
+      else el.value = data[key];
+    }
+    const opacityValue = doc.getElementById(`kustom-${section}-opacity-value`);
+    if (opacityValue) opacityValue.textContent = `${data.opacity}%`;
+    const rotateValue = doc.getElementById(`kustom-${section}-rotate-value`);
+    if (rotateValue) rotateValue.textContent = `${data.rotate}°`;
+  }
+
+  // Sama seperti subtitle: font size dikalibrasi buat resolusi render asli
+  // (1080px), harus discale ke ukuran canvas pratinjau (168px).
+  const TEXT_OVERLAY_PREVIEW_SCALE = 1 / 5;
+
+  function updateTextOverlayPreview(section, data) {
+    const el = doc.getElementById(`kustom-preview-${section}`);
+    if (!el) return;
+    el.hidden = !data.enabled;
+    el.style.left = `${data.pos_x}%`;
+    el.style.top = `${data.pos_y}%`;
+    el.style.transform = `translate(-50%, -50%) rotate(${data.rotate}deg)`;
+    el.style.fontFamily = data.font;
+    el.style.fontSize = `${Math.max(6, Math.round(data.size * TEXT_OVERLAY_PREVIEW_SCALE))}px`;
+    el.style.color = data.color;
+    el.style.opacity = String(data.opacity / 100);
+    el.textContent = data.text;
+  }
+
+  function populateOverlayGambarFields(data) {
+    for (const { key, id } of OVERLAY_GAMBAR_FIELDS) {
+      const el = doc.getElementById(id);
+      if (!el) continue;
+      el.value = data[key];
+      const valueEl = doc.getElementById(`${id}-value`);
+      if (!valueEl) continue;
+      valueEl.textContent = key === "rotate" ? `${data[key]}°` : `${data[key]}%`;
+    }
+    const pathLabel = doc.getElementById("kustom-overlay_gambar-path-label");
+    if (pathLabel) pathLabel.textContent = data.image_path || "Belum ada gambar dipilih";
+  }
+
+  // Ukuran/posisi persen di sini match 1:1 sama semantik ffmpeg (persen dari
+  // lebar output, dipusatkan di titik pos) -- beda dari teks, gambar gak butuh
+  // PREVIEW_SCALE manual karena width % relatif ke canvas otomatis proporsional.
+  function updateImageOverlayPreview(data) {
+    const el = doc.getElementById("kustom-preview-image");
+    if (!el) return;
+    el.hidden = !data.enabled || !data.image_path;
+    if (data.image_path) el.src = `file://${data.image_path}`;
+    el.style.left = `${data.pos_x}%`;
+    el.style.top = `${data.pos_y}%`;
+    el.style.width = `${data.size}%`;
+    el.style.opacity = String(data.opacity / 100);
+    el.style.transform = `translate(-50%, -50%) rotate(${data.rotate}deg)`;
+  }
+
   function populate(cfg) {
     enabledCheckbox.checked = Boolean(cfg.enabled);
     for (const name of CUSTOMIZATION_SECTIONS) {
@@ -932,6 +1025,17 @@ function setupCustomization(doc) {
       lastColorGrade = cfg.color_grade;
       populateColorGradeFields(cfg.color_grade);
       updateColorGradePreview(cfg.color_grade);
+    }
+    for (const section of ["watermark", "overlay_sumber"]) {
+      if (!cfg[section]) continue;
+      lastTextOverlay[section] = cfg[section];
+      populateTextOverlayFields(section, cfg[section]);
+      updateTextOverlayPreview(section, cfg[section]);
+    }
+    if (cfg.overlay_gambar) {
+      lastOverlayGambar = cfg.overlay_gambar;
+      populateOverlayGambarFields(cfg.overlay_gambar);
+      updateImageOverlayPreview(cfg.overlay_gambar);
     }
   }
 
@@ -1105,6 +1209,75 @@ function setupCustomization(doc) {
         setStatus("Preset diterapkan", "success");
       } catch {
         setStatus("Gagal menerapkan preset", "error");
+      }
+    });
+  }
+
+  for (const section of ["watermark", "overlay_sumber"]) {
+    for (const { key, id, type } of TEXT_OVERLAY_SECTIONS[section]) {
+      const el = doc.getElementById(id);
+      if (!el) continue;
+      el.addEventListener("input", () => {
+        const current = { ...lastTextOverlay[section], [key]: readFieldValue(el, type) };
+        lastTextOverlay[section] = current;
+        updateTextOverlayPreview(section, current);
+        if (el.type === "range") {
+          const valueEl = doc.getElementById(`${id}-value`);
+          if (valueEl) {
+            valueEl.textContent = key === "rotate" ? `${current[key]}°` : `${current[key]}%`;
+          }
+        }
+      });
+      el.addEventListener("change", async () => {
+        try {
+          await update({ [section]: { [key]: readFieldValue(el, type) } });
+          setStatus("Tersimpan", "success");
+        } catch {
+          setStatus("Gagal menyimpan", "error");
+        }
+      });
+    }
+  }
+
+  for (const { key, id } of OVERLAY_GAMBAR_FIELDS) {
+    const el = doc.getElementById(id);
+    if (!el) continue;
+    el.addEventListener("input", () => {
+      const value = parseFloat(el.value);
+      const current = { ...lastOverlayGambar, [key]: value };
+      lastOverlayGambar = current;
+      updateImageOverlayPreview(current);
+      const valueEl = doc.getElementById(`${id}-value`);
+      if (valueEl) valueEl.textContent = key === "rotate" ? `${value}°` : `${value}%`;
+    });
+    el.addEventListener("change", async () => {
+      try {
+        await update({ overlay_gambar: { [key]: parseFloat(el.value) } });
+        setStatus("Tersimpan", "success");
+      } catch {
+        setStatus("Gagal menyimpan", "error");
+      }
+    });
+  }
+
+  const overlayGambarBrowseBtn = doc.getElementById("kustom-overlay_gambar-browse-btn");
+  if (overlayGambarBrowseBtn) {
+    overlayGambarBrowseBtn.addEventListener("click", async () => {
+      if (
+        typeof window === "undefined" ||
+        !window.autoclip ||
+        !window.autoclip.selectOverlayImage
+      ) {
+        setStatus("Pemilih gambar tidak tersedia", "error");
+        return;
+      }
+      try {
+        const path = await window.autoclip.selectOverlayImage();
+        if (!path) return; // dialog dibatalkan
+        await update({ overlay_gambar: { image_path: path } });
+        setStatus("Gambar dipilih", "success");
+      } catch (err) {
+        setStatus(err.message || "Gagal memilih gambar", "error");
       }
     });
   }

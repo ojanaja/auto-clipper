@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld("autoclip", {
   selectOutputDir: () => ipcRenderer.invoke("select-output-dir"),
   importCustomizationPreset: () => ipcRenderer.invoke("import-customization-preset"),
   exportCustomizationPreset: (data) => ipcRenderer.invoke("export-customization-preset", data),
+  selectOverlayImage: () => ipcRenderer.invoke("select-overlay-image"),
 });

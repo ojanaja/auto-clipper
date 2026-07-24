@@ -97,18 +97,79 @@ class SubtitleStyleConfig:
 
 
 @dataclass
-class OverlaySumberConfig:
+class TextOverlayConfig:
+    """Field bersama Overlay Sumber & Watermark -- keduanya teks statis sepanjang
+    klip, dirender lewat event ASS terpisah (bukan drawtext -- filter itu tak
+    tersedia di build ffmpeg ini, lihat pipeline/overlay.py)."""
+
     enabled: bool = False
+    text: str = ""
+    font: str = "Arial"
+    size: int = 32
+    color: str = "#FFFFFF"
+    opacity: int = 80
+    pos_x: int = 50
+    pos_y: int = 10
+    rotate: float = 0.0
+
+    def validate(self, label: str) -> None:
+        if not 12 <= self.size <= 160:
+            raise CustomizationError(f"{label}.size harus antara 12 dan 160")
+        if not 0 <= self.opacity <= 100:
+            raise CustomizationError(f"{label}.opacity harus antara 0 dan 100")
+        if not 0 <= self.pos_x <= 100:
+            raise CustomizationError(f"{label}.pos_x harus antara 0 dan 100")
+        if not 0 <= self.pos_y <= 100:
+            raise CustomizationError(f"{label}.pos_y harus antara 0 dan 100")
+        if not -180 <= self.rotate <= 180:
+            raise CustomizationError(f"{label}.rotate harus antara -180 dan 180")
+        _validate_hex_color(f"{label}.color", self.color)
 
 
 @dataclass
-class WatermarkConfig:
-    enabled: bool = False
+class OverlaySumberConfig(TextOverlayConfig):
+    text: str = "Sumber: @channel"
+    pos_x: int = 50
+    pos_y: int = 95
+    opacity: int = 90
+
+    def validate(self) -> None:
+        super().validate("overlay_sumber")
+
+
+@dataclass
+class WatermarkConfig(TextOverlayConfig):
+    text: str = "AutoClip"
+    pos_x: int = 50
+    pos_y: int = 50
+    opacity: int = 25
+    rotate: float = -30.0
+
+    def validate(self) -> None:
+        super().validate("watermark")
 
 
 @dataclass
 class OverlayGambarConfig:
     enabled: bool = False
+    image_path: str = ""
+    size: int = 20  # persen lebar output
+    opacity: int = 100
+    rotate: float = 0.0
+    pos_x: int = 85
+    pos_y: int = 12
+
+    def validate(self) -> None:
+        if not 5 <= self.size <= 100:
+            raise CustomizationError("overlay_gambar.size harus antara 5 dan 100")
+        if not 0 <= self.opacity <= 100:
+            raise CustomizationError("overlay_gambar.opacity harus antara 0 dan 100")
+        if not -180 <= self.rotate <= 180:
+            raise CustomizationError("overlay_gambar.rotate harus antara -180 dan 180")
+        if not 0 <= self.pos_x <= 100:
+            raise CustomizationError("overlay_gambar.pos_x harus antara 0 dan 100")
+        if not 0 <= self.pos_y <= 100:
+            raise CustomizationError("overlay_gambar.pos_y harus antara 0 dan 100")
 
 
 @dataclass
@@ -163,6 +224,9 @@ class CustomizationConfig:
         """Validasi section yang sudah punya field detail; raise CustomizationError bila invalid."""
         self.subtitle.validate()
         self.color_grade.validate()
+        self.overlay_sumber.validate()
+        self.watermark.validate()
+        self.overlay_gambar.validate()
 
     def to_dict(self) -> dict:
         return asdict(self)

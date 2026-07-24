@@ -6,7 +6,10 @@ from customization import (
     ColorGradeConfig,
     CustomizationConfig,
     CustomizationError,
+    OverlayGambarConfig,
+    OverlaySumberConfig,
     SubtitleStyleConfig,
+    WatermarkConfig,
     default_customization_path,
     load_customization,
     save_customization,
@@ -45,7 +48,8 @@ def test_to_dict_nests_sections():
     data = CustomizationConfig().to_dict()
     assert data["subtitle"]["template"] == "karaoke_pop"
     assert data["subtitle"]["enabled"] is True
-    assert data["watermark"] == {"enabled": False}
+    assert data["watermark"]["enabled"] is False
+    assert data["watermark"]["text"] == "AutoClip"
 
 
 @pytest.mark.parametrize(
@@ -155,6 +159,131 @@ def test_from_dict_missing_section_uses_default():
 def test_from_dict_corrupt_section_falls_back_to_default():
     cfg = CustomizationConfig.from_dict({"subtitle": "not-a-dict"})
     assert cfg.subtitle.enabled is True
+
+
+# --- Overlay Sumber / Watermark (TextOverlayConfig) ---
+
+
+def test_default_overlay_sumber_matches_table():
+    s = OverlaySumberConfig()
+    assert s.enabled is False
+    assert s.text == "Sumber: @channel"
+    assert s.font == "Arial"
+    assert s.size == 32
+    assert s.color == "#FFFFFF"
+    assert s.opacity == 90
+    assert s.pos_x == 50
+    assert s.pos_y == 95
+    assert s.rotate == 0.0
+
+
+def test_default_watermark_matches_table():
+    w = WatermarkConfig()
+    assert w.enabled is False
+    assert w.text == "AutoClip"
+    assert w.opacity == 25
+    assert w.pos_x == 50
+    assert w.pos_y == 50
+    assert w.rotate == -30.0
+
+
+@pytest.mark.parametrize(
+    "overrides,message_contains",
+    [
+        ({"size": 11}, "size"),
+        ({"size": 161}, "size"),
+        ({"opacity": -1}, "opacity"),
+        ({"opacity": 101}, "opacity"),
+        ({"pos_x": -1}, "pos_x"),
+        ({"pos_y": 101}, "pos_y"),
+        ({"rotate": -181}, "rotate"),
+        ({"rotate": 181}, "rotate"),
+        ({"color": "white"}, "color"),
+    ],
+)
+def test_overlay_sumber_validate_rejects_invalid(overrides, message_contains):
+    cfg = OverlaySumberConfig(**overrides)
+    with pytest.raises(CustomizationError, match=f"overlay_sumber.{message_contains}"):
+        cfg.validate()
+
+
+def test_watermark_validate_rejects_invalid_uses_own_label():
+    cfg = WatermarkConfig(size=200)
+    with pytest.raises(CustomizationError, match="watermark.size"):
+        cfg.validate()
+
+
+def test_overlay_sumber_validate_accepts_defaults():
+    OverlaySumberConfig().validate()  # tidak raise
+
+
+def test_watermark_validate_accepts_defaults():
+    WatermarkConfig().validate()  # tidak raise
+
+
+def test_customization_validate_delegates_to_watermark():
+    cfg = CustomizationConfig()
+    cfg.watermark.opacity = 500
+    with pytest.raises(CustomizationError, match="watermark.opacity"):
+        cfg.validate()
+
+
+def test_customization_validate_delegates_to_overlay_sumber():
+    cfg = CustomizationConfig()
+    cfg.overlay_sumber.color = "notacolor"
+    with pytest.raises(CustomizationError, match="overlay_sumber.color"):
+        cfg.validate()
+
+
+# --- Overlay Gambar ---
+
+
+def test_default_overlay_gambar_matches_table():
+    g = OverlayGambarConfig()
+    assert g.enabled is False
+    assert g.image_path == ""
+    assert g.size == 20
+    assert g.opacity == 100
+    assert g.rotate == 0.0
+    assert g.pos_x == 85
+    assert g.pos_y == 12
+
+
+@pytest.mark.parametrize(
+    "overrides,message_contains",
+    [
+        ({"size": 4}, "size"),
+        ({"size": 101}, "size"),
+        ({"opacity": -1}, "opacity"),
+        ({"opacity": 101}, "opacity"),
+        ({"rotate": -181}, "rotate"),
+        ({"rotate": 181}, "rotate"),
+        ({"pos_x": -1}, "pos_x"),
+        ({"pos_y": 101}, "pos_y"),
+    ],
+)
+def test_overlay_gambar_validate_rejects_invalid(overrides, message_contains):
+    cfg = OverlayGambarConfig(**overrides)
+    with pytest.raises(CustomizationError, match=message_contains):
+        cfg.validate()
+
+
+def test_overlay_gambar_validate_accepts_defaults():
+    OverlayGambarConfig().validate()  # tidak raise
+
+
+def test_overlay_gambar_validate_ignores_missing_image_path():
+    # image_path cuma dicek eksistensinya saat render (lihat pipeline/render.py),
+    # bukan saat validate -- preset yang diimpor di mesin lain boleh menunjuk
+    # file yang belum ada di mesin ini.
+    OverlayGambarConfig(image_path="/tidak/ada/logo.png").validate()  # tidak raise
+
+
+def test_customization_validate_delegates_to_overlay_gambar():
+    cfg = CustomizationConfig()
+    cfg.overlay_gambar.size = 1000
+    with pytest.raises(CustomizationError, match="overlay_gambar.size"):
+        cfg.validate()
 
 
 def test_load_customization_missing_file_returns_default(tmp_path, monkeypatch):
